@@ -1,7 +1,3 @@
--- migrations/002_seed_rbac.sql
--- ============================================
--- ROLES
--- ============================================
 INSERT INTO roles (name, description)
 VALUES ('owner', 'Full control over the workspace'),
   (
@@ -9,10 +5,7 @@ VALUES ('owner', 'Full control over the workspace'),
     'Administrative access to the workspace'
   ),
   ('member', 'Standard workspace access'),
-  ('viewer', 'Read-only workspace access');
--- ============================================
--- PERMISSIONS
--- ============================================
+  ('viewer', 'Read-only workspace access') ON CONFLICT (name) DO NOTHING;
 INSERT INTO permissions (name, description)
 VALUES ('workspace:read', 'View workspace information'),
   (
@@ -41,20 +34,13 @@ VALUES ('workspace:read', 'View workspace information'),
   ),
   ('invite:read', 'View workspace invitations'),
   ('invite:create', 'Create workspace invitations'),
-  ('invite:delete', 'Cancel workspace invitations');
--- ============================================
--- OWNER
--- Receives all permissions
--- ============================================
+  ('invite:delete', 'Cancel workspace invitations') ON CONFLICT (name) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id,
   p.id
 FROM roles r
   CROSS JOIN permissions p
-WHERE r.name = 'owner';
--- ============================================
--- ADMIN
--- ============================================
+WHERE r.name = 'owner' ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id,
   p.id
@@ -76,10 +62,7 @@ FROM roles r
     'invite:create',
     'invite:delete'
   )
-WHERE r.name = 'admin';
--- ============================================
--- MEMBER
--- ============================================
+WHERE r.name = 'admin' ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id,
   p.id
@@ -92,10 +75,7 @@ FROM roles r
     'invite:read',
     'invite:create'
   )
-WHERE r.name = 'member';
--- ============================================
--- VIEWER
--- ============================================
+WHERE r.name = 'member' ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id,
   p.id
@@ -107,4 +87,4 @@ FROM roles r
     'permission:read',
     'invite:read'
   )
-WHERE r.name = 'viewer';
+WHERE r.name = 'viewer' ON CONFLICT (role_id, permission_id) DO NOTHING;
