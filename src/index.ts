@@ -14,6 +14,10 @@ pool
   .catch((error) => {
     console.error("Erro ao conectar ao PostgreSQL:", error);
   });
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
 app.listen(process.env.PORT, () => {
   console.log(`Servidor rodando em http://localhost:${process.env.PORT}`);
 });
