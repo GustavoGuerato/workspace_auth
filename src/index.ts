@@ -1,7 +1,6 @@
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
 import { pool } from "./db/pool.js";
 import healthRoute from "./routes/health.routes.js";
-
 const app = express();
 
 app.use(healthRoute);
@@ -17,6 +16,13 @@ pool
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
+});
+
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  console.log(err);
+  res.status(500).json({
+    error: "Internal server error",
+  });
 });
 app.listen(process.env.PORT, () => {
   console.log(`Servidor rodando em http://localhost:${process.env.PORT}`);
