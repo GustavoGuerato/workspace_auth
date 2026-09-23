@@ -1,10 +1,11 @@
 import express, { NextFunction, Request, Response } from "express";
 import { pool } from "./db/pool.js";
 import healthRoute from "./routes/health.routes.js";
+import authRoutes from "./routes/auth.routes";
 const app = express();
 app.use(express.json());
 app.use(healthRoute);
-
+app.use("/auth", authRoutes);
 pool
   .query("SELECT NOW();")
   .then((result) => {

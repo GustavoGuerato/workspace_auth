@@ -1,6 +1,8 @@
-import bcrypt from "bcrypt"
-import jwt from "jsonwebtoken"
-import { Router } from "express"
-import { Request, Response, NextFunction } from "express"
+import { Router } from "express";
+import validateRegister from "../middlewares/validateRegister";
+import { registerController } from "../controllers/authController.register";
 
+const router = Router();
+router.post("/register", validateRegister, registerController);
 
+export default router;
