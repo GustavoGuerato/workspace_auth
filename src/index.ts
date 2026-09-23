@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { pool } from "./db/pool.js";
 import healthRoute from "./routes/health.routes.js";
 const app = express();
-
+app.use(express.json());
 app.use(healthRoute);
 
 pool
