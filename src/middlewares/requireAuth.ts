@@ -13,7 +13,9 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authorization = req.headers.authorization;
     if (!authorization) {
-      throw new Error("Authentication token is required");
+      return res
+        .status(401)
+        .json({ error: "Authentication token is required" });
     }
     if (!authorization.startsWith("Bearer ")) {
       throw new Error("Invalid Format");
