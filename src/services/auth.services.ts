@@ -40,7 +40,7 @@ const login = async (email: string, password: string) => {
   const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordMatch) {
-    throw new Error("Invalid Credentials");
+    throw new Error("Invalid credentials");
   }
   if (!jwt_secret) {
     throw new Error("JWT_SECRET is not defined");
