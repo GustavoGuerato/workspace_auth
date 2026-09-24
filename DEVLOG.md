@@ -19,3 +19,22 @@
 - 2026-09-21 — Adicionado handler global para rotas não encontradas (`404`).
 - 2026-09-21 — Adicionado error handler com resposta padronizada e sem exposição de stack trace ao cliente.
 - 2026-09-21 — Testadas manualmente as rotas stub, `/health`, `404` e error handler.
+  **## Dia 3 — Autenticação**
+
+- 2026-09-22 — Implementado o registro de usuários com validação de entrada, verificação de e-mail duplicado e hash de senha com `bcrypt`.
+
+- 2026-09-22 — Implementado o login com validação de credenciais e geração de token JWT.
+
+- 2026-09-22 — Definido o payload do JWT contendo apenas o `sub` com o ID do usuário, sem senha ou `password_hash`.
+
+- 2026-09-22 — Definida a expiração do token JWT em `1h` e configurado o `JWT_SECRET` por variável de ambiente.
+
+- 2026-09-22 — Implementado o middleware `requireAuth` para validação do token Bearer e identificação do usuário autenticado.
+
+- 2026-09-22 — Adicionado o usuário autenticado à requisição através de `req.user`.
+
+- 2026-09-22 — Implementado tratamento distinto para token ausente, inválido e expirado utilizando o formato de erro padronizado.
+
+- 2026-09-22 — Implementada a rota protegida `/auth/me` para retornar os dados do usuário autenticado sem expor o `password_hash`.
+
+- 2026-09-22 — Testados manualmente registro, duplicidade de e-mail, login, autenticação da rota `/me` e ausência de dados sensíveis nas respostas.
