@@ -26,3 +26,4 @@ const createWorkspace = async (userId: string, name: string, slug: string) => {
     client.release();
   }
 };
+export { createWorkspace };
