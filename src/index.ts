@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { pool } from "./db/pool.js";
 import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
+import workspaceRoutes from "./routes/workspaces.routes.js";
 const app = express();
 app.use(express.json());
 app.use(healthRoute);
@@ -14,11 +15,11 @@ pool
   .catch((error) => {
     console.error("Erro ao conectar ao PostgreSQL:", error);
   });
+app.use("/workspace", workspaceRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
-
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   console.log(err);
   res.status(500).json({

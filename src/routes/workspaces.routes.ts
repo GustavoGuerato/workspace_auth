@@ -14,3 +14,4 @@ router.patch("/:id", (req, res) => {
 router.delete("/:id", (req, res) => {
   res.status(501).json({ message: "not implemented" });
 });
+export default router;

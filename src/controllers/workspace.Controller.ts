@@ -8,14 +8,16 @@ export const workspaceController = async (
 ) => {
   try {
     const { name, slug } = req.body;
+
+    if (!name || !slug) {
+      return res.status(400).json({ error: "name and slug are required" });
+    }
     if (!req.user) {
       return next(new Error("User not authenticated"));
     }
     const userId = req.user.id;
-    await createWorkspace(userId, name, slug);
-    res.status(201).json({
-      message: "Workspace created successfully",
-    });
+    const workspace = await createWorkspace(userId, name, slug);
+    return res.status(201).json(workspace);
   } catch (error) {
     next(error);
   }

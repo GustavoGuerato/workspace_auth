@@ -20,8 +20,10 @@ const createWorkspace = async (userId: string, name: string, slug: string) => {
       [userId, workspaceId, ownerRoleId],
     );
     await client.query("COMMIT");
+    return workspaceResult.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
