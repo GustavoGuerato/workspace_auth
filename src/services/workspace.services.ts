@@ -5,21 +5,33 @@ const createWorkspace = async (userId: string, name: string, slug: string) => {
 
   try {
     await client.query("BEGIN");
+
     const workspaceResult = await client.query(
       `INSERT INTO workspaces(name, slug)
-   VALUES($1, $2)
-   RETURNING id, name, slug`,
+       VALUES($1, $2)
+       RETURNING id, name, slug`,
       [name, slug],
     );
-    const result = client.query("SELECT id FROM roles WHERE name = 'owner'");
-    const ownerRoleId = (await result).rows[0].id;
+
+    const result = await client.query(
+      "SELECT id FROM roles WHERE name = 'owner'",
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error("Owner role not found");
+    }
+
+    const ownerRoleId = result.rows[0].id;
 
     const workspaceId = workspaceResult.rows[0].id;
+
     await client.query(
       "INSERT INTO memberships(user_id, workspace_id, role_id) VALUES($1, $2, $3)",
       [userId, workspaceId, ownerRoleId],
     );
+
     await client.query("COMMIT");
+
     return workspaceResult.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");
@@ -28,4 +40,5 @@ const createWorkspace = async (userId: string, name: string, slug: string) => {
     client.release();
   }
 };
+
 export { createWorkspace };

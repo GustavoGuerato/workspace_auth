@@ -20,8 +20,19 @@ app.use("/workspace", workspaceRoutes);
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
+
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  console.log(err);
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    err.code === "23505"
+  ) {
+    return res.status(409).json({
+      error: "Workspace slug already exists",
+    });
+  }
+
   res.status(500).json({
     error: "Internal server error",
   });

@@ -61,3 +61,14 @@
 - 2026-09-24 — Definida a estratégia de isolamento dos testes de login utilizando mocks para o acesso ao PostgreSQL, mantendo `bcrypt` e `jsonwebtoken` reais para validar o comportamento de autenticação.
 
 - 2026-09-24 — Validado que os testes de login não dependem de dados persistidos no banco de desenvolvimento.
+  2026-09-27 — Implementado o endpoint protegido para criação de workspaces utilizando o usuário autenticado como criador.
+  2026-09-27 — Implementada a criação do workspace e do membership inicial do criador dentro de uma única transação PostgreSQL.
+  2026-09-27 — Definido o uso de um cliente dedicado via pool.connect() para garantir que todas as operações da transação utilizem a mesma conexão.
+  2026-09-27 — Implementado BEGIN, COMMIT, ROLLBACK e liberação do cliente com finally.
+  2026-09-27 — Implementada a busca da role owner pelo nome, evitando dependência de IDs fixos.
+  2026-09-27 — Tornada a seed das roles idempotente utilizando ON CONFLICT (name) DO NOTHING.
+  2026-09-27 — Implementado tratamento para ausência da role owner, interrompendo a operação e acionando o rollback da transação.
+  2026-09-27 — Implementado tratamento de violação de unicidade do PostgreSQL (23505) no error handler, retornando 409 Conflict.
+  2026-09-27 — Validada manualmente a criação de um workspace e do membership do usuário autenticado com a role owner.
+  2026-09-27 — Validada a associação correta entre users, workspaces, memberships e roles.
+  2026-09-27 — Definida a regra de unicidade do workspace através das constraints existentes no banco, especialmente para o slug.
