@@ -7,7 +7,12 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "jest"
+    ],
+    "isolatedModules": true
   },
   "include": [
     "src"
