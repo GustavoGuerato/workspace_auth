@@ -22,6 +22,8 @@ app.use((req, res) => {
 });
 
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  console.log("ERROR:", err);
+
   if (
     typeof err === "object" &&
     err !== null &&
