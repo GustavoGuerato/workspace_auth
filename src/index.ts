@@ -4,10 +4,14 @@ import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
 import { ZodError } from "zod";
+
 const app = express();
+
 app.use(express.json());
+
 app.use(healthRoute);
 app.use("/auth", authRoutes);
+
 pool
   .query("SELECT NOW();")
   .then((result) => {
@@ -16,6 +20,7 @@ pool
   .catch((error) => {
     console.error("Erro ao conectar ao PostgreSQL:", error);
   });
+
 app.use("/workspace", workspaceRoutes);
 
 app.use((req, res) => {
@@ -47,6 +52,5 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     error: "Internal server error",
   });
 });
-app.listen(process.env.PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${process.env.PORT}`);
-});
+
+export default app;
