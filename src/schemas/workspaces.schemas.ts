@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const workspacesSchemas = z.object({
+export const createWorkspaceSchema = z.object({
   name: z.string().trim().min(3).max(50),
   slug: z
     .string()
