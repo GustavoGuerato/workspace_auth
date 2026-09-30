@@ -72,3 +72,18 @@
   2026-09-27 — Validada manualmente a criação de um workspace e do membership do usuário autenticado com a role owner.
   2026-09-27 — Validada a associação correta entre users, workspaces, memberships e roles.
   2026-09-27 — Definida a regra de unicidade do workspace através das constraints existentes no banco, especialmente para o slug.
+  2026-09-29 — Estudado e aplicado Zod 4 para validação das entradas da API.
+  2026-09-29 — Criados schemas de validação para register, login e criação de workspace.
+  2026-09-29 — Implementada normalização de username, email, name e slug antes das validações correspondentes.
+  2026-09-29 — Mantida a senha sem normalização para preservar seu valor exato durante a autenticação.
+  2026-09-29 — Implementado middleware genérico validate utilizando safeParse do Zod.
+  2026-09-29 — Integrada a validação Zod às rotas de registro, login e criação de workspace antes da execução da lógica de negócio.
+  2026-09-29 — Integrado ZodError ao error handler central, retornando 400 Bad Request com os detalhes das falhas de validação.
+  2026-09-29 — Validado manualmente o fluxo de registro com dados inválidos e confirmada a resposta padronizada de validação.
+  2026-09-29 — Validado manualmente o fluxo de registro e login com dados válidos após a integração do Zod.
+  2026-09-29 — Validada manualmente a criação de workspace com dados válidos após a integração do Zod.
+  2026-09-29 — Validada a rejeição de workspace com slug inválido, confirmando que o erro é interceptado pelo Zod antes da lógica de negócio.
+  2026-09-29 — Separada a configuração da aplicação Express da inicialização do servidor HTTP, permitindo que o app seja importado diretamente pelos testes com Supertest.
+  2026-09-29 — Mantido index.ts como módulo responsável pela configuração e exportação da aplicação Express.
+  2026-09-29 — Criado server.ts como ponto responsável pela inicialização do servidor com app.listen().
+  2026-09-29 — Preparada a arquitetura da aplicação para o primeiro teste real de integração utilizando Supertest e PostgreSQL.

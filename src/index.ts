@@ -4,7 +4,7 @@ import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
 import { ZodError } from "zod";
-
+import { AppError } from "./errors.js";
 const app = express();
 
 app.use(express.json());
@@ -47,7 +47,11 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
       error: "Workspace slug already exists",
     });
   }
-
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      error: err.message,
+    });
+  }
   res.status(500).json({
     error: "Internal server error",
   });
