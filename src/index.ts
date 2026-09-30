@@ -3,6 +3,7 @@ import { pool } from "./db/pool.js";
 import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
+import { ZodError } from "zod";
 const app = express();
 app.use(express.json());
 app.use(healthRoute);
@@ -23,6 +24,13 @@ app.use((req, res) => {
 
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   console.log("ERROR:", err);
+
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      error: "Validation error",
+      details: err.issues,
+    });
+  }
 
   if (
     typeof err === "object" &&
