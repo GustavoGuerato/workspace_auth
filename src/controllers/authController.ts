@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { register, login } from "../services/auth.services";
-import { refreshAccessToken } from "../services/refresh-token.service";
+import {
+  refreshAccessToken,
+  revokeRefreshToken,
+} from "../services/refresh-token.service";
 import { AppError } from "../errors";
 const registerController = async (
   req: Request,
@@ -59,4 +62,33 @@ const refreshController = async (
     next(error);
   }
 };
-export { registerController, loginController, refreshController };
+
+const logoutController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    return res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+export {
+  registerController,
+  loginController,
+  refreshController,
+  logoutController,
+};

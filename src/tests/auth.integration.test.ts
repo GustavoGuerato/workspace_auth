@@ -50,17 +50,55 @@ describe("POST /auth/refresh", () => {
     expect(refreshResponse.body.token).toBeTruthy();
 
     expect(refreshResponse.headers["set-cookie"]).toBeDefined();
+
     const newCookie = refreshResponse.headers["set-cookie"][0];
 
     expect(newCookie).toContain("refreshToken=");
     expect(newCookie).not.toBe(oldCookie);
-    expect(refreshResponse.headers["set-cookie"][0]).toContain("refreshToken=");
 
     const reuseResponse = await request(app)
       .post("/auth/refresh")
       .set("Cookie", oldCookie);
 
     expect(reuseResponse.status).toBe(401);
+  });
+});
+
+describe("POST /auth/logout", () => {
+  it("deve revogar o refresh token e limpar o cookie", async () => {
+    const loginResponse = await request(app).post("/auth/login").send({
+      email: "gustavo@example.com",
+      password: "12345678",
+    });
+
+    expect(loginResponse.status).toBe(200);
+
+    const cookie = loginResponse.headers["set-cookie"][0];
+
+    const logoutResponse = await request(app)
+      .post("/auth/logout")
+      .set("Cookie", cookie);
+
+    expect(logoutResponse.status).toBe(204);
+
+    expect(logoutResponse.headers["set-cookie"]).toBeDefined();
+
+    const clearCookie = logoutResponse.headers["set-cookie"][0];
+
+    expect(clearCookie).toContain("refreshToken=");
+    expect(clearCookie).toContain("Expires=Thu, 01 Jan 1970");
+
+    const refreshResponse = await request(app)
+      .post("/auth/refresh")
+      .set("Cookie", cookie);
+
+    expect(refreshResponse.status).toBe(401);
+  });
+
+  it("deve retornar 204 mesmo sem refresh token", async () => {
+    const response = await request(app).post("/auth/logout");
+
+    expect(response.status).toBe(204);
   });
 });
 
