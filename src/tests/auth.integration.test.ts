@@ -14,6 +14,7 @@ describe("POST /auth/login", () => {
 
     expect(response.body.user).toBeDefined();
     expect(response.body.user.email).toBe("gustavo@example.com");
+
     expect(response.body.token).toEqual(expect.any(String));
     expect(response.body.token).toBeTruthy();
 
@@ -25,6 +26,41 @@ describe("POST /auth/login", () => {
     );
 
     expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
+  });
+});
+
+describe("POST /auth/refresh", () => {
+  it("deve rotacionar o refresh token e invalidar o token antigo", async () => {
+    const loginResponse = await request(app).post("/auth/login").send({
+      email: "gustavo@example.com",
+      password: "12345678",
+    });
+
+    expect(loginResponse.status).toBe(200);
+
+    const oldCookie = loginResponse.headers["set-cookie"][0];
+
+    const refreshResponse = await request(app)
+      .post("/auth/refresh")
+      .set("Cookie", oldCookie);
+
+    expect(refreshResponse.status).toBe(200);
+
+    expect(refreshResponse.body.token).toEqual(expect.any(String));
+    expect(refreshResponse.body.token).toBeTruthy();
+
+    expect(refreshResponse.headers["set-cookie"]).toBeDefined();
+    const newCookie = refreshResponse.headers["set-cookie"][0];
+
+    expect(newCookie).toContain("refreshToken=");
+    expect(newCookie).not.toBe(oldCookie);
+    expect(refreshResponse.headers["set-cookie"][0]).toContain("refreshToken=");
+
+    const reuseResponse = await request(app)
+      .post("/auth/refresh")
+      .set("Cookie", oldCookie);
+
+    expect(reuseResponse.status).toBe(401);
   });
 });
 

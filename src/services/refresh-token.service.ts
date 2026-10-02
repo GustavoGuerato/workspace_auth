@@ -78,7 +78,8 @@ export async function refreshAccessToken(refreshToken: string) {
   if (!token) {
     throw new AppError("Invalid refresh token", 401);
   }
-
+  const newRefreshToken = await createRefreshToken(token.user_id);
+  await revokeRefreshToken(refreshToken);
   if (!jwt_secret) {
     throw new Error("JWT_SECRET is not defined");
   }
@@ -86,5 +87,5 @@ export async function refreshAccessToken(refreshToken: string) {
   const accessToken = jwt.sign({ sub: token.user_id }, jwt_secret, {
     expiresIn: "1h",
   });
-  return accessToken;
+  return { accessToken, refreshToken: newRefreshToken };
 }

@@ -46,8 +46,14 @@ const refreshController = async (
       throw new AppError("Refresh token not provided", 401);
     }
 
-    const accessToken = await refreshAccessToken(refreshToken);
-
+    const { accessToken, refreshToken: newRefreshToken } =
+      await refreshAccessToken(refreshToken);
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      maxAge: 604800000,
+    });
     return res.status(200).json({ token: accessToken });
   } catch (error) {
     next(error);
