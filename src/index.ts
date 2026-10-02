@@ -1,5 +1,5 @@
 import express, { NextFunction, Request, Response } from "express";
-import { pool } from "./db/pool.js";
+import { pool } from "./db/pool";
 import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
@@ -27,7 +27,9 @@ pool
 app.use("/workspace", workspaceRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
+  res.status(404).json({
+    error: "Route not found",
+  });
 });
 
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
@@ -50,12 +52,14 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
       error: "Workspace slug already exists",
     });
   }
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       error: err.message,
     });
   }
-  res.status(500).json({
+
+  return res.status(500).json({
     error: "Internal server error",
   });
 });

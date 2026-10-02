@@ -5,6 +5,10 @@ const config: Config = {
   testEnvironment: "node",
   testMatch: ["**/*.test.ts"],
   clearMocks: true,
+
+  moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
 };
 
 export default config;
