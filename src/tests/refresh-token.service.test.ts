@@ -112,4 +112,7 @@ describe("Refresh Token Service", () => {
   afterAll(async () => {
     await pool.end();
   });
+  it("deve permitir revogar um refresh token inexistente", async () => {
+    await revokeRefreshToken("497c5e13d0646ab3496266c74d6b4305aece92f8");
+  });
 });

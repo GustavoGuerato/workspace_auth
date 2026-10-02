@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { pool } from "../db/pool";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { createRefreshToken } from "./refresh-token.service";
 
 dotenv.config();
 const saltRounds = 10;
@@ -46,6 +47,7 @@ const login = async (email: string, password: string) => {
     throw new Error("JWT_SECRET is not defined");
   }
   const token = jwt.sign({ sub: user.id }, jwt_secret, { expiresIn: "1h" });
+  const refreshToken = await createRefreshToken(user.id);
   return {
     user: {
       id: user.id,
@@ -53,6 +55,7 @@ const login = async (email: string, password: string) => {
       email: user.email,
     },
     token,
+    refreshToken,
   };
 };
 export { register, login };

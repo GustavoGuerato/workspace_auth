@@ -21,8 +21,14 @@ const loginController = async (
 ) => {
   try {
     const { email, password } = req.body;
-    const result = await login(email, password);
-    return res.status(200).json(result);
+    const { user, token, refreshToken } = await login(email, password);
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      maxAge: 604800000,
+    });
+    return res.status(200).json({ user, token });
   } catch (error) {
     next(error);
   }

@@ -5,9 +5,12 @@ import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
 import { ZodError } from "zod";
 import { AppError } from "./errors.js";
+import cookieParser from "cookie-parser";
+
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(healthRoute);
 app.use("/auth", authRoutes);
