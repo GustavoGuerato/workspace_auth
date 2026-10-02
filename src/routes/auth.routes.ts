@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   loginController,
+  refreshController,
   registerController,
 } from "../controllers/authController";
 import { meController } from "../controllers/userController";
@@ -12,5 +13,5 @@ const router = Router();
 router.post("/register", validate(registerSchema), registerController);
 router.post("/login", validate(loginSchema), loginController);
 router.get("/me", requireAuth, meController);
-
+router.post("/refresh", refreshController);
 export default router;

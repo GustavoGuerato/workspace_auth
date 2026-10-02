@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { register, login } from "../services/auth.services";
+import { refreshAccessToken } from "../services/refresh-token.service";
+import { AppError } from "../errors";
 const registerController = async (
   req: Request,
   res: Response,
@@ -33,4 +35,22 @@ const loginController = async (
     next(error);
   }
 };
-export { registerController, loginController };
+const refreshController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) {
+      throw new AppError("Refresh token not provided", 401);
+    }
+
+    const accessToken = await refreshAccessToken(refreshToken);
+
+    return res.status(200).json({ token: accessToken });
+  } catch (error) {
+    next(error);
+  }
+};
+export { registerController, loginController, refreshController };

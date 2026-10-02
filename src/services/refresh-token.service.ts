@@ -1,5 +1,10 @@
 import { randomBytes, createHash } from "node:crypto";
 import { pool } from "../db/pool";
+import { AppError } from "../errors";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+
+dotenv.config();
 export function generateRefreshToken(): string {
   return randomBytes(32).toString("hex");
 }
@@ -65,4 +70,21 @@ export async function revokeRefreshToken(refreshToken: string) {
   `,
     [tokenHash],
   );
+}
+
+const jwt_secret = process.env.JWT_SECRET;
+export async function refreshAccessToken(refreshToken: string) {
+  const token = await findValidRefreshToken(refreshToken);
+  if (!token) {
+    throw new AppError("Invalid refresh token", 401);
+  }
+
+  if (!jwt_secret) {
+    throw new Error("JWT_SECRET is not defined");
+  }
+
+  const accessToken = jwt.sign({ sub: token.user_id }, jwt_secret, {
+    expiresIn: "1h",
+  });
+  return accessToken;
 }
