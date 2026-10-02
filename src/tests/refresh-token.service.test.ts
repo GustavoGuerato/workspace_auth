@@ -1,6 +1,8 @@
 import {
   createRefreshToken,
   hashRefreshToken,
+  findValidRefreshToken,
+  revokeRefreshToken,
 } from "../services/refresh-token.service";
 import { pool } from "../db/pool";
 
@@ -43,6 +45,70 @@ describe("Refresh Token Service", () => {
     expect(expiresAt).toBeLessThanOrEqual(now + sevenDays + tolerance);
   });
 
+  it("deve encontrar um refresh token existente", async () => {
+    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
+
+    const refreshToken = await createRefreshToken(userId);
+
+    const result = await findValidRefreshToken(refreshToken);
+
+    expect(result).not.toBeNull();
+    expect(result?.user_id).toBe(userId);
+    expect(result?.token_hash).toBe(hashRefreshToken(refreshToken));
+  });
+
+  it("deve retornar null para um refresh token inexistente", async () => {
+    const refreshToken = "token-que-nao-existe";
+
+    const result = await findValidRefreshToken(refreshToken);
+
+    expect(result).toBeNull();
+  });
+  it("deve retornar null para um refresh token revogado", async () => {
+    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
+
+    const refreshToken = await createRefreshToken(userId);
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    await pool.query(
+      `
+      UPDATE refresh_tokens
+      SET revoked_at = NOW()
+      WHERE token_hash = $1
+    `,
+      [tokenHash],
+    );
+
+    const result = await findValidRefreshToken(refreshToken);
+
+    expect(result).toBeNull();
+  });
+  it("deve retornar null para um refresh token expirado", async () => {
+    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
+
+    const refreshToken = await createRefreshToken(userId);
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    await pool.query(
+      `
+      UPDATE refresh_tokens
+      SET expires_at = NOW() - INTERVAL '1 minute'
+      WHERE token_hash = $1
+    `,
+      [tokenHash],
+    );
+
+    const result = await findValidRefreshToken(refreshToken);
+
+    expect(result).toBeNull();
+  });
+  it("deve revogar um refresh token", async () => {
+    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
+    const refreshToken = await createRefreshToken(userId);
+    await revokeRefreshToken(refreshToken);
+    const result = await findValidRefreshToken(refreshToken);
+    expect(result).toBeNull();
+  });
   afterAll(async () => {
     await pool.end();
   });

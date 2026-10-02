@@ -27,3 +27,42 @@ export async function createRefreshToken(userId: string): Promise<string> {
   );
   return refreshToken;
 }
+export async function findValidRefreshToken(refreshToken: string) {
+  const tokenHash = hashRefreshToken(refreshToken);
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      user_id,
+      token_hash,
+      expires_at,
+      revoked_at
+    FROM refresh_tokens
+    WHERE token_hash = $1
+  `,
+    [tokenHash],
+  );
+  if (result.rows.length === 0) {
+    return null;
+  }
+  const token = result.rows[0];
+  if (token.revoked_at !== null) {
+    return null;
+  }
+
+  if (new Date(token.expires_at).getTime() <= Date.now()) {
+    return null;
+  }
+  return token;
+}
+export async function revokeRefreshToken(refreshToken: string) {
+  const tokenHash = hashRefreshToken(refreshToken);
+  await pool.query(
+    `
+    UPDATE refresh_tokens
+    SET revoked_at = NOW()
+    WHERE token_hash = $1
+  `,
+    [tokenHash],
+  );
+}
