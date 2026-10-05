@@ -2,9 +2,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { pool } from "../db/pool";
 import { AppError } from "../errors";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
+import { env } from "../config/env.js";
 
-dotenv.config();
 export function generateRefreshToken(): string {
   return randomBytes(32).toString("hex");
 }
@@ -12,6 +11,7 @@ export function generateRefreshToken(): string {
 export function hashRefreshToken(refreshToken: string): string {
   return createHash("sha256").update(refreshToken).digest("hex");
 }
+
 export async function createRefreshToken(userId: string): Promise<string> {
   const refreshToken = generateRefreshToken();
   const tokenHash = hashRefreshToken(refreshToken);
@@ -30,10 +30,13 @@ export async function createRefreshToken(userId: string): Promise<string> {
   `,
     [userId, tokenHash, expiresAt],
   );
+
   return refreshToken;
 }
+
 export async function findValidRefreshToken(refreshToken: string) {
   const tokenHash = hashRefreshToken(refreshToken);
+
   const result = await pool.query(
     `
     SELECT
@@ -47,10 +50,13 @@ export async function findValidRefreshToken(refreshToken: string) {
   `,
     [tokenHash],
   );
+
   if (result.rows.length === 0) {
     return null;
   }
+
   const token = result.rows[0];
+
   if (token.revoked_at !== null) {
     return null;
   }
@@ -58,10 +64,13 @@ export async function findValidRefreshToken(refreshToken: string) {
   if (new Date(token.expires_at).getTime() <= Date.now()) {
     return null;
   }
+
   return token;
 }
+
 export async function revokeRefreshToken(refreshToken: string) {
   const tokenHash = hashRefreshToken(refreshToken);
+
   await pool.query(
     `
     UPDATE refresh_tokens
@@ -72,20 +81,20 @@ export async function revokeRefreshToken(refreshToken: string) {
   );
 }
 
-const jwt_secret = process.env.JWT_SECRET;
 export async function refreshAccessToken(refreshToken: string) {
   const token = await findValidRefreshToken(refreshToken);
+
   if (!token) {
     throw new AppError("Invalid refresh token", 401);
   }
-  const newRefreshToken = await createRefreshToken(token.user_id);
-  await revokeRefreshToken(refreshToken);
-  if (!jwt_secret) {
-    throw new Error("JWT_SECRET is not defined");
-  }
 
-  const accessToken = jwt.sign({ sub: token.user_id }, jwt_secret, {
+  const newRefreshToken = await createRefreshToken(token.user_id);
+
+  await revokeRefreshToken(refreshToken);
+
+  const accessToken = jwt.sign({ sub: token.user_id }, env.JWT_SECRET, {
     expiresIn: "1h",
   });
+
   return { accessToken, refreshToken: newRefreshToken };
 }
