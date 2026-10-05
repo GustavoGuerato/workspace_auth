@@ -94,3 +94,16 @@
 - 2026-10-02 — Executado o Jest com `--detectOpenHandles` para diagnosticar operações assíncronas pendentes.
 - 2026-10-02 — Confirmado o encerramento correto do Jest após a finalização do pool PostgreSQL nos testes.
 - 2026-10-02 — Consolidado o fluxo de sessão renovável do AccessForge: login → Access Token + Refresh Token → refresh com rotação → revogação → logout.
+
+- 2026-10-05 — Implementado CORS restrito utilizando `FRONTEND_ORIGIN` como origem permitida e mantendo `credentials: true` sem utilizar wildcard (`*`).
+- 2026-10-05 — Criados testes de integração para validar a aceitação da origem configurada e a rejeição de origens não autorizadas.
+- 2026-10-05 — Instalado e aplicado `Helmet` globalmente para adicionar headers HTTP de segurança à API.
+- 2026-10-05 — Criados testes para validar headers como `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy` e `Strict-Transport-Security`.
+- 2026-10-05 — Implementada validação centralizada das variáveis de ambiente utilizando Zod, com comportamento fail-fast para configurações obrigatórias ausentes ou inválidas.
+- 2026-10-05 — Centralizado o acesso às configurações da aplicação em `src/config/env.ts`, removendo o uso direto de `process.env` das demais camadas.
+- 2026-10-05 — Implementado hardening dos cookies de Refresh Token com `HttpOnly`, `SameSite=Lax`, `Max-Age` de 7 dias e `Secure` habilitado em produção.
+- 2026-10-05 — Criados testes para validar os atributos dos cookies de Refresh Token nos ambientes de desenvolvimento e produção.
+- 2026-10-05 — Validado o comportamento de rotação, revogação e limpeza dos cookies de Refresh Token durante refresh e logout.
+- 2026-10-05 — Atualizado o README com os controles de segurança implementados e o mapeamento do AccessForge ao OWASP Top 10, distinguindo controles implementados, parciais e não aplicáveis.
+- 2026-10-05 — Executada a suíte completa após o hardening da API, totalizando **26 testes aprovados em 8 suítes**.
+- 2026-10-05 — Consolidado o hardening inicial da API: CORS restrito, Helmet, cookies seguros, validação de ambiente e documentação dos controles de segurança.
