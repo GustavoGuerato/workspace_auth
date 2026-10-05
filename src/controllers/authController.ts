@@ -5,6 +5,7 @@ import {
   revokeRefreshToken,
 } from "../services/refresh-token.service";
 import { AppError } from "../errors";
+import { env } from "../config/env";
 const registerController = async (
   req: Request,
   res: Response,
@@ -29,7 +30,7 @@ const loginController = async (
     const { user, token, refreshToken } = await login(email, password);
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 604800000,
     });
@@ -53,7 +54,7 @@ const refreshController = async (
       await refreshAccessToken(refreshToken);
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 604800000,
     });
@@ -77,7 +78,7 @@ const logoutController = async (
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: false,
+      secure: env.NODE_ENV==="production",
       sameSite: "lax",
     });
 

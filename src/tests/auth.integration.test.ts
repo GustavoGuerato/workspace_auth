@@ -1,6 +1,7 @@
 import request from "supertest";
 import { describe, it, expect, afterAll } from "@jest/globals";
 import app from "../index";
+import { env } from "../config/env";
 import { pool } from "../db/pool";
 
 describe("POST /auth/login", () => {
@@ -21,11 +22,19 @@ describe("POST /auth/login", () => {
     expect(response.body.refreshToken).toBeUndefined();
 
     expect(response.headers["set-cookie"]).toBeDefined();
-    expect(response.headers["set-cookie"]).toEqual(
-      expect.arrayContaining([expect.stringContaining("refreshToken=")]),
-    );
 
-    expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
+    const cookie = response.headers["set-cookie"][0];
+
+    expect(cookie).toContain("refreshToken=");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Max-Age=604800");
+
+    if (env.NODE_ENV === "production") {
+      expect(cookie).toContain("Secure");
+    } else {
+      expect(cookie).not.toContain("Secure");
+    }
   });
 });
 

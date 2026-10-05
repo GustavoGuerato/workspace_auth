@@ -22,4 +22,7 @@ export const envSchema = z.object({
     .trim()
     .min(1, { message: "FRONTEND_ORIGIN is required" })
     .url({ message: "FRONTEND_ORIGIN must be a valid URL" }),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
 });
