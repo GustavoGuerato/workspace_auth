@@ -6,12 +6,28 @@ import workspaceRoutes from "./routes/workspaces.routes.js";
 import { AppError } from "./errors.js";
 import cookieParser from "cookie-parser";
 import { ZodError } from "zod";
+import cors from "cors";
+import { env } from "./config/env";
+import helmet from "helmet";
 
 const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || origin === env.FRONTEND_ORIGIN) {
+        callback(null, true);
+        return;
+      }
 
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
+app.use(helmet());
 app.use(healthRoute);
 app.use("/auth", authRoutes);
 
