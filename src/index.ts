@@ -3,9 +3,9 @@ import { pool } from "./db/pool";
 import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
-import { ZodError } from "zod";
 import { AppError } from "./errors.js";
 import cookieParser from "cookie-parser";
+import { ZodError } from "zod";
 
 const app = express();
 
