@@ -33,15 +33,6 @@ app.use(helmet());
 app.use(healthRoute);
 app.use("/auth", authRoutes);
 
-pool
-  .query("SELECT NOW();")
-  .then((result) => {
-    console.log("PostgreSQL conectado:", result.rows[0]);
-  })
-  .catch((error) => {
-    console.error("Erro ao conectar ao PostgreSQL:", error);
-  });
-
 app.use("/workspace", workspaceRoutes);
 
 app.use((req, res) => {
