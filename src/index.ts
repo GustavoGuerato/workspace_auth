@@ -1,19 +1,19 @@
-import express, { NextFunction, Request, Response } from "express";
+import express from "express";
 import { pool } from "./db/pool";
 import healthRoute from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes";
 import workspaceRoutes from "./routes/workspaces.routes.js";
-import { AppError } from "./errors.js";
 import cookieParser from "cookie-parser";
-import { ZodError } from "zod";
 import cors from "cors";
 import { env } from "./config/env";
 import helmet from "helmet";
+import { errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -27,7 +27,9 @@ app.use(
     credentials: true,
   }),
 );
+
 app.use(helmet());
+
 app.use(healthRoute);
 app.use("/auth", authRoutes);
 
@@ -48,36 +50,6 @@ app.use((req, res) => {
   });
 });
 
-app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  console.log("ERROR:", err);
-
-  if (err instanceof ZodError) {
-    return res.status(400).json({
-      error: "Validation error",
-      details: err.issues,
-    });
-  }
-
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    err.code === "23505"
-  ) {
-    return res.status(409).json({
-      error: "Workspace slug already exists",
-    });
-  }
-
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      error: err.message,
-    });
-  }
-
-  return res.status(500).json({
-    error: "Internal server error",
-  });
-});
+app.use(errorHandler);
 
 export default app;
