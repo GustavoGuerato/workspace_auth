@@ -15,15 +15,14 @@ export function errorHandler(
     });
   }
 
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    err.code === "23505"
-  ) {
-    return res.status(409).json({
-      error: "Resource already exists",
-    });
+  if (typeof err === "object" && err !== null && "code" in err) {
+    const dbError = err as { code: string };
+
+    if (dbError.code === "23505") {
+      return res.status(409).json({
+        error: "Resource already exists",
+      });
+    }
   }
 
   if (err instanceof AppError) {
