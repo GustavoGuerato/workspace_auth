@@ -1,6 +1,5 @@
 # Development Log
 
-
 - 2026-09-20 — Inicializado o projeto AccessForge com Node.js, TypeScript, Express e Git.
 - 2026-09-20 — Configurado o ambiente TypeScript, scripts do projeto, variáveis de ambiente e `.gitignore`.
 - 2026-09-20 — Configurado o PostgreSQL com `pg`, `Pool` centralizado e validação da conexão.
@@ -9,7 +8,6 @@
 - 2026-09-20 — Validada a estrutura do banco e a rota inicial `/health`.
 - 2026-09-20 — Organizado o histórico do projeto em commits pequenos e coerentes.
 
-
 - 2026-09-21 — Criado o migration runner para executar e registrar migrations.
 - 2026-09-21 — Criado o seed inicial de RBAC com roles, permissions e `role_permissions`.
 - 2026-09-21 — Tornado o seed idempotente para permitir reexecução sem duplicar registros.
@@ -17,7 +15,6 @@
 - 2026-09-21 — Adicionado handler global para rotas não encontradas (`404`).
 - 2026-09-21 — Adicionado error handler com resposta padronizada e sem exposição de stack trace ao cliente.
 - 2026-09-21 — Testadas manualmente as rotas stub, `/health`, `404` e error handler.
-
 
 - 2026-09-22 — Implementado o registro de usuários com validação de entrada, verificação de e-mail duplicado e hash de senha com `bcrypt`.
 - 2026-09-22 — Implementado o login com validação de credenciais e geração de token JWT.
@@ -34,7 +31,6 @@
 - 2026-09-24 — Definida a estratégia de isolamento dos testes de login utilizando mocks para o acesso ao PostgreSQL, mantendo `bcrypt` e `jsonwebtoken` reais para validar o comportamento de autenticação.
 - 2026-09-24 — Validado que os testes de login não dependem de dados persistidos no banco de desenvolvimento.
 
-
 - 2026-09-27 — Implementado o endpoint protegido para criação de workspaces utilizando o usuário autenticado como criador.
 - 2026-09-27 — Implementada a criação do workspace e do membership inicial do criador dentro de uma única transação PostgreSQL.
 - 2026-09-27 — Definido o uso de um cliente dedicado via `pool.connect()` para garantir que todas as operações da transação utilizem a mesma conexão.
@@ -46,7 +42,6 @@
 - 2026-09-27 — Validada manualmente a criação de um workspace e do membership do usuário autenticado com a role `owner`.
 - 2026-09-27 — Validada a associação correta entre `users`, `workspaces`, `memberships` e `roles`.
 - 2026-09-27 — Definida a regra de unicidade do workspace através das constraints existentes no banco, especialmente para o `slug`.
-
 
 - 2026-09-29 — Estudado e aplicado Zod 4 para validação das entradas da API.
 - 2026-09-29 — Criados schemas de validação para register, login e criação de workspace.
@@ -63,7 +58,6 @@
 - 2026-09-29 — Mantido `index.ts` como módulo responsável pela configuração e exportação da aplicação Express.
 - 2026-09-29 — Criado `server.ts` como ponto responsável pela inicialização do servidor com `app.listen()`.
 - 2026-09-29 — Preparada a arquitetura da aplicação para o primeiro teste real de integração utilizando Supertest e PostgreSQL.
-
 
 - 2026-10-02 — Estudada a separação de responsabilidades entre Access Token e Refresh Token no fluxo de autenticação.
 - 2026-10-02 — Definido o Access Token como JWT de curta duração, com expiração de `1h`, utilizado para autenticar requisições protegidas.
@@ -107,3 +101,16 @@
 - 2026-10-05 — Atualizado o README com os controles de segurança implementados e o mapeamento do AccessForge ao OWASP Top 10, distinguindo controles implementados, parciais e não aplicáveis.
 - 2026-10-05 — Executada a suíte completa após o hardening da API, totalizando **26 testes aprovados em 8 suítes**.
 - 2026-10-05 — Consolidado o hardening inicial da API: CORS restrito, Helmet, cookies seguros, validação de ambiente e documentação dos controles de segurança.
+
+\- 2026-10-07 — Implementado logging estruturado com \`Pino\`, incluindo nível, timestamp e contexto nas mensagens de log do servidor.
+\- 2026-10-07 — Substituídos logs soltos de aplicação por logger estruturado, mantendo detalhes técnicos no servidor e respostas genéricas para o cliente.
+\- 2026-10-07 — Revisado o error handler centralizado para tratamento de \`ZodError\`, violações de unicidade do PostgreSQL (\`23505\`), \`AppError\` e erros não tratados.
+\- 2026-10-07 — Criado seed de volume independente do RBAC contendo 500 usuários, 25 workspaces e 10.000 memberships.
+\- 2026-10-07 — Tornado o seed de volume idempotente utilizando \`ON CONFLICT\` nas entidades com restrições de unicidade.
+\- 2026-10-07 — Executado \`EXPLAIN ANALYZE\` em consulta real envolvendo \`memberships\`, \`roles\`, \`role_permissions\` e \`permissions\` antes da criação de novos índices.
+\- 2026-10-07 — Identificado \`Seq Scan\` em \`users.username\`, com 505 linhas removidas pelo filtro.
+\- 2026-10-07 — Criado o índice \`idx_users_username\` com base no plano de execução observado.
+\- 2026-10-07 — Reexecutado o \`EXPLAIN ANALYZE\` após a criação do índice, confirmando a substituição do \`Seq Scan\` por \`Index Scan\` em \`users.username\`.
+\- 2026-10-07 — Observada redução do \`Execution Time\` de aproximadamente \`0.420 ms\` para \`0.089 ms\` no cenário de teste, sem tratar essa diferença como benchmark de produção devido ao baixo volume e ao cache.
+\- 2026-10-07 — Versionado o índice \`idx_users_username\` através da migration \`005_add_users_username_index.sql\`.
+\- 2026-10-07 — Sincronizado o histórico do migration runner com o banco existente, totalizando cinco migrations registradas em \`schema_migrations\`.
