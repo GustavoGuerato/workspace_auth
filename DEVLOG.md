@@ -114,3 +114,5 @@
 \- 2026-10-07 — Observada redução do \`Execution Time\` de aproximadamente \`0.420 ms\` para \`0.089 ms\` no cenário de teste, sem tratar essa diferença como benchmark de produção devido ao baixo volume e ao cache.
 \- 2026-10-07 — Versionado o índice \`idx_users_username\` através da migration \`005_add_users_username_index.sql\`.
 \- 2026-10-07 — Sincronizado o histórico do migration runner com o banco existente, totalizando cinco migrations registradas em \`schema_migrations\`.
+- 2026-10-12 —  P1A (Backend MVP) concluído, com autenticação (JWT + refresh token com rotação), workspaces multi-tenant com RBAC, validação com Zod, hardening (CORS, Helmet, cookies, env), logging com Pino, índices guiados por EXPLAIN ANALYZE e README reescrito.
+- 2026-10-12 — Autoavaliação do P1A: 8.0
