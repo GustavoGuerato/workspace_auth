@@ -1,11 +1,17 @@
+
 import { Router } from "express";
 import { pool } from "../db/pool";
+
 const router = Router();
 
-router.get("/", async (_req, res) => {
+router.get("/health", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.status(200).json({ status: "ok", database: "ok" });
+
+    res.status(200).json({
+      status: "ok",
+      database: "ok",
+    });
   } catch {
     res.status(503).json({
       status: "error",
@@ -13,4 +19,5 @@ router.get("/", async (_req, res) => {
     });
   }
 });
+
 export default router;
