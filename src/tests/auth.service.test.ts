@@ -1,4 +1,11 @@
 import { describe, it, expect, jest } from "@jest/globals";
+
+jest.mock("../services/refresh-token.service", () => ({
+  createRefreshToken: jest
+    .fn<() => Promise<string>>()
+    .mockResolvedValue("mock-refresh-token"),
+}));
+
 import bcrypt from "bcrypt";
 import { pool } from "../db/pool";
 import { login } from "../services/auth.services";
@@ -19,20 +26,22 @@ describe("login", () => {
     queryMock.mockImplementationOnce(async () => ({
       rows: [user],
       rowCount: 1,
-    }));
+    }) as never);
 
-    const result = await login("gustavo@email.com", "senha123");
+    try {
+      const result = await login("gustavo@email.com", "senha123");
 
-    expect(result.user).toEqual({
-      id: "2acfe4af-8be5-48db-97a2-6cf6f22d8590",
-      username: "Gustavo",
-      email: "gustavo@email.com",
-    });
+      expect(result.user).toEqual({
+        id: "2acfe4af-8be5-48db-97a2-6cf6f22d8590",
+        username: "Gustavo",
+        email: "gustavo@email.com",
+      });
 
-    expect(result.token).toEqual(expect.any(String));
-    expect(result.token).toBeTruthy();
-    expect(result.refreshToken).toEqual(expect.any(String));
-
-    queryMock.mockRestore();
+      expect(result.token).toEqual(expect.any(String));
+      expect(result.token).toBeTruthy();
+      expect(result.refreshToken).toBe("mock-refresh-token");
+    } finally {
+      queryMock.mockRestore();
+    }
   });
 });
