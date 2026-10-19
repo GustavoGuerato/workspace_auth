@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { createWorkspace } from "../services/workspace.services";
+import { createWorkspace, getUserWorkspaces } from "../services/workspace.services";
 
 export const workspaceController = async (
   req: Request,
@@ -22,3 +22,15 @@ export const workspaceController = async (
     next(error);
   }
 };
+export const getUserWorkspacesController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      return next(new Error("User not authenticated"));
+    }
+    const userId = req.user.id;
+    const workspaces = await getUserWorkspaces(userId);
+    return res.status(200).json(workspaces);
+  } catch (error) {
+    next(error);
+  }
+}

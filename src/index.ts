@@ -33,8 +33,7 @@ app.use(helmet());
 app.use(healthRoute);
 app.use("/auth", authRoutes);
 
-app.use("/workspace", workspaceRoutes);
-
+app.use("/workspaces", workspaceRoutes);
 app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",

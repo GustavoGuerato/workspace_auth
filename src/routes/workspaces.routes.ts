@@ -1,6 +1,9 @@
 import { Router } from "express";
 import requireAuth from "../middlewares/requireAuth";
-import { workspaceController } from "../controllers/workspace.Controller";
+import {
+  workspaceController,
+  getUserWorkspacesController,
+} from "../controllers/workspace.Controller"; 
 import { requireRole } from "../middlewares/requireRole";
 import { validate } from "../middlewares/validate";
 import { createWorkspaceSchema } from "../schemas/workspaces.schemas";
@@ -29,4 +32,5 @@ router.patch(
 router.delete("/:id", (req, res) => {
   res.status(501).json({ message: "not implemented" });
 });
+router.get("/", requireAuth, getUserWorkspacesController);
 export default router;

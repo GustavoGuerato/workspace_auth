@@ -41,4 +41,20 @@ const createWorkspace = async (userId: string, name: string, slug: string) => {
   }
 };
 
-export { createWorkspace };
+const getUserWorkspaces = async (userId: string) => {
+  const result = await pool.query(
+    `SELECT
+  w.id,
+  w.name,
+  w.slug,
+  r.name AS role
+FROM memberships m
+JOIN workspaces w ON m.workspace_id = w.id
+JOIN roles r ON m.role_id = r.id
+WHERE m.user_id = $1;`,
+    [userId],
+  );
+  return result.rows;
+}
+
+export { createWorkspace, getUserWorkspaces };
