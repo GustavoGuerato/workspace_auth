@@ -116,3 +116,42 @@
 \- 2026-10-07 — Sincronizado o histórico do migration runner com o banco existente, totalizando cinco migrations registradas em \`schema_migrations\`.
 - 2026-10-12 —  P1A (Backend MVP) concluído, com autenticação (JWT + refresh token com rotação), workspaces multi-tenant com RBAC, validação com Zod, hardening (CORS, Helmet, cookies, env), logging com Pino, índices guiados por EXPLAIN ANALYZE e README reescrito.
 - 2026-10-12 — Autoavaliação do P1A: 8.0
+## 2026-10-19 — Dia 16 (S8) — Listagem de workspaces do usuário autenticado
+
+### Implementações
+
+- Implementado o endpoint protegido `GET /workspaces` para listar os workspaces aos quais o usuário autenticado pertence.
+- Implementada consulta PostgreSQL com `JOIN` entre `memberships`, `workspaces` e `roles`.
+- Aplicado filtro por `m.user_id = $1`, utilizando o ID obtido da autenticação, sem confiar em um ID de usuário fornecido pelo frontend.
+- Definidos os campos retornados para cada workspace: `id`, `name`, `slug` e `role`.
+- Integrada a listagem à camada de controllers e às rotas de workspaces existentes.
+
+### Segurança e isolamento multi-tenant
+
+- Validada a exigência de autenticação para acessar `GET /workspaces`.
+- Criados testes de integração para verificar que um usuário autenticado recebe apenas os workspaces associados a ele.
+- Validado que um usuário sem memberships recebe uma lista vazia.
+- Validado que um usuário sem associação ao workspace de outro usuário recebe `403 Forbidden` ao tentar executar a operação protegida de atualização, sem acesso autorizado ao recurso alheio.
+
+### Testes realizados
+
+- Executada a suíte de testes de integração após as alterações: 31 testes aprovados em 10 suítes.
+- Validada a listagem de workspaces do usuário autenticado.
+- Validado o isolamento entre usuários e memberships.
+- Validada a rejeição de acesso sem autenticação e a negação de acesso a workspace sem associação autorizada.
+
+### Decisões técnicas
+
+- A identidade do usuário é obtida do contexto autenticado da requisição.
+- O PostgreSQL é responsável por relacionar usuários, workspaces e roles por meio dos memberships.
+- O backend aplica o isolamento dos dados; a interface frontend não é considerada uma fronteira de segurança.
+- A consulta retorna somente os campos necessários à listagem, incluindo o papel do usuário em cada workspace.
+
+### Pendências
+
+- Executar ou registrar separadamente a validação manual do comportamento da interface diante de token inválido ou expirado.
+- Confirmar os commits correspondentes às alterações do backend e atualizar a documentação geral, se necessário.
+
+### Estado do Dia 16
+
+A implementação da listagem protegida e os testes de integração estão concluídos conforme os resultados registrados. A validação manual do estado de erro no frontend permanece separada desta confirmação.
