@@ -1,3 +1,4 @@
+
 import {
   createRefreshToken,
   hashRefreshToken,
@@ -5,11 +6,29 @@ import {
   revokeRefreshToken,
 } from "../services/refresh-token.service";
 import { pool } from "../db/pool";
+import bcrypt from "bcrypt";
 
 describe("Refresh Token Service", () => {
-  it("deve criar um refresh token", async () => {
-    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
+  let userId: string;
 
+  beforeAll(async () => {
+    const passwordHash = await bcrypt.hash("Teste123456", 10);
+
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password_hash)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [
+        "Refresh Token Test User",
+        `refresh-token-test-${Date.now()}@example.com`,
+        passwordHash,
+      ],
+    );
+
+    userId = result.rows[0].id;
+  });
+
+  it("deve criar um refresh token", async () => {
     const now = Date.now();
 
     const refreshToken = await createRefreshToken(userId);
@@ -20,11 +39,9 @@ describe("Refresh Token Service", () => {
     const tokenHash = hashRefreshToken(refreshToken);
 
     const result = await pool.query(
-      `
-        SELECT user_id, token_hash, expires_at, revoked_at
-        FROM refresh_tokens
-        WHERE token_hash = $1
-      `,
+      `SELECT user_id, token_hash, expires_at, revoked_at
+       FROM refresh_tokens
+       WHERE token_hash = $1`,
       [tokenHash],
     );
 
@@ -32,22 +49,23 @@ describe("Refresh Token Service", () => {
 
     expect(savedToken).toBeDefined();
     expect(savedToken.user_id).toBe(userId);
-    expect(savedToken.token_hash).toBe(hashRefreshToken(refreshToken));
+    expect(savedToken.token_hash).toBe(tokenHash);
     expect(savedToken.revoked_at).toBeNull();
 
     const expiresAt = new Date(savedToken.expires_at).getTime();
-
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     const tolerance = 1000;
 
-    expect(expiresAt).toBeGreaterThanOrEqual(now + sevenDays - tolerance);
+    expect(expiresAt).toBeGreaterThanOrEqual(
+      now + sevenDays - tolerance,
+    );
 
-    expect(expiresAt).toBeLessThanOrEqual(now + sevenDays + tolerance);
+    expect(expiresAt).toBeLessThanOrEqual(
+      now + sevenDays + tolerance,
+    );
   });
 
   it("deve encontrar um refresh token existente", async () => {
-    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
-
     const refreshToken = await createRefreshToken(userId);
 
     const result = await findValidRefreshToken(refreshToken);
@@ -58,24 +76,21 @@ describe("Refresh Token Service", () => {
   });
 
   it("deve retornar null para um refresh token inexistente", async () => {
-    const refreshToken = "token-que-nao-existe";
-
-    const result = await findValidRefreshToken(refreshToken);
+    const result = await findValidRefreshToken(
+      "token-que-nao-existe",
+    );
 
     expect(result).toBeNull();
   });
+
   it("deve retornar null para um refresh token revogado", async () => {
-    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
-
     const refreshToken = await createRefreshToken(userId);
     const tokenHash = hashRefreshToken(refreshToken);
 
     await pool.query(
-      `
-      UPDATE refresh_tokens
-      SET revoked_at = NOW()
-      WHERE token_hash = $1
-    `,
+      `UPDATE refresh_tokens
+       SET revoked_at = NOW()
+       WHERE token_hash = $1`,
       [tokenHash],
     );
 
@@ -83,18 +98,15 @@ describe("Refresh Token Service", () => {
 
     expect(result).toBeNull();
   });
+
   it("deve retornar null para um refresh token expirado", async () => {
-    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
-
     const refreshToken = await createRefreshToken(userId);
     const tokenHash = hashRefreshToken(refreshToken);
 
     await pool.query(
-      `
-      UPDATE refresh_tokens
-      SET expires_at = NOW() - INTERVAL '1 minute'
-      WHERE token_hash = $1
-    `,
+      `UPDATE refresh_tokens
+       SET expires_at = NOW() - INTERVAL '1 minute'
+       WHERE token_hash = $1`,
       [tokenHash],
     );
 
@@ -102,17 +114,40 @@ describe("Refresh Token Service", () => {
 
     expect(result).toBeNull();
   });
+
   it("deve revogar um refresh token", async () => {
-    const userId = "2acfe4af-8be5-48db-97a2-6cf6f22d8590";
     const refreshToken = await createRefreshToken(userId);
+
     await revokeRefreshToken(refreshToken);
+
     const result = await findValidRefreshToken(refreshToken);
+
     expect(result).toBeNull();
   });
-  afterAll(async () => {
-    await pool.end();
-  });
+
   it("deve permitir revogar um refresh token inexistente", async () => {
-    await revokeRefreshToken("497c5e13d0646ab3496266c74d6b4305aece92f8");
+    await expect(
+      revokeRefreshToken(
+        "497c5e13d0646ab3496266c74d6b4305aece92f8",
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  afterAll(async () => {
+    try {
+      if (userId) {
+        await pool.query(
+          `DELETE FROM refresh_tokens WHERE user_id = $1`,
+          [userId],
+        );
+
+        await pool.query(
+          `DELETE FROM users WHERE id = $1`,
+          [userId],
+        );
+      }
+    } finally {
+      await pool.end();
+    }
   });
 });
