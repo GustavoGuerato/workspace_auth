@@ -1,39 +1,58 @@
+
 import { Request, Response, NextFunction } from "express";
-import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import jwt, {
+  JsonWebTokenError,
+  TokenExpiredError,
+} from "jsonwebtoken";
 import { env } from "../config/env.js";
 
-interface AuthPayload {
-  sub: string;
-}
+const requireAuth = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const authorization = req.headers.authorization;
 
-const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!authorization || !authorization.startsWith("Bearer ")) {
+    return res.status(401).json({
+      error: "Authentication token is required",
+    });
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+
+  if (!token) {
+    return res.status(401).json({
+      error: "Authentication token is required",
+    });
+  }
+
   try {
-    const authorization = req.headers.authorization;
+    const decoded = jwt.verify(token, env.JWT_SECRET);
 
-    if (!authorization) {
-      return res
-        .status(401)
-        .json({ error: "Authentication token is required" });
+    if (
+      typeof decoded === "string" ||
+      typeof decoded.sub !== "string"
+    ) {
+      return res.status(401).json({
+        error: "Invalid authentication token",
+      });
     }
-
-    if (!authorization.startsWith("Bearer ")) {
-      throw new Error("Invalid Format");
-    }
-
-    const token = authorization.split(" ")[1];
-
-    const decoded = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
 
     req.user = { id: decoded.sub };
 
-    next();
-  } catch (error) {
+    return next();
+  } catch (error: unknown) {
     if (error instanceof TokenExpiredError) {
-      return next(new Error("Authentication token expired"));
+      return res.status(401).json({
+        error: "Authentication token expired",
+      });
     }
 
     if (error instanceof JsonWebTokenError) {
-      return next(new Error("Invalid authentication token"));
+      return res.status(401).json({
+        error: "Invalid authentication token",
+      });
     }
 
     return next(error);
