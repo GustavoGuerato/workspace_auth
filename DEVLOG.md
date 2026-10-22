@@ -155,3 +155,5 @@
 ### Estado do Dia 16
 
 A implementação da listagem protegida e os testes de integração estão concluídos conforme os resultados registrados. A validação manual do estado de erro no frontend permanece separada desta confirmação.
+
+- 2026-10-21 — Corrigida a consulta `getUserById` para utilizar `name AS username`, alinhando os campos retornados ao esquema da tabela `users` e corrigindo o erro `500` em `GET /auth/me`.
