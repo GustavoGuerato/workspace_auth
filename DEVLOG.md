@@ -157,3 +157,29 @@
 A implementação da listagem protegida e os testes de integração estão concluídos conforme os resultados registrados. A validação manual do estado de erro no frontend permanece separada desta confirmação.
 
 - 2026-10-21 — Corrigida a consulta `getUserById` para utilizar `name AS username`, alinhando os campos retornados ao esquema da tabela `users` e corrigindo o erro `500` em `GET /auth/me`.
+
+## 2026-10-26 — Dia 19 (S8) — Documentação dos endpoints existentes
+
+### Implementações
+
+- Criado `docs/API.md` com convenções gerais (formato, autenticação, cookie de refresh, erros, precedência de middlewares, normalização, CORS), índice de 11 rotas, fluxo de autenticação, detalhe por endpoint e limitações conhecidas classificadas.
+- Cada afirmação do documento marcada como `[exec]` (observada na execução) ou `[código]` (lida no código).
+- Adicionado `scripts/api-matrix.cjs`, que executa a matriz de casos contra o servidor e compara com o esperado pela leitura do código.
+
+### Verificação
+
+- Primeira execução da matriz feita por Claude em ambiente descartável (Postgres local, não o meu banco de dev): 84 requisições, 0 divergências.
+- Execução na minha máquina, contra meu banco de dev: [pendente / resultado: __ divergências].
+- Exercícios 8–11 do Dia 19: [o que eu respondi e onde errei].
+
+### Achados (documentados, sem correção neste dia)
+
+- `validate` não propaga o resultado do Zod; e-mail e slug são gravados crus.
+- Entrada comum vira 500: JSON malformado, corpo grande, CORS não permitido, `workspaceId` não-UUID, `/auth/me` de usuário apagado.
+- Sem detecção de reuso de refresh token; login não revoga tokens anteriores; logout não derruba o access token.
+- Migration 005 referencia `username`, coluna que não existe em `users`; `volume.seed.ts` quebrado; `npm start` aponta para `dist/index.js`; `.env.example` incompleto.
+
+### Pendências
+
+- Preencher o hash do commit no topo de `docs/API.md`.
+- [Decidir quando tratar cada achado, em commits separados.]

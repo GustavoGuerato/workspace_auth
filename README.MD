@@ -1,73 +1,80 @@
 # AccessForge
 
-**API de autenticação, autorização e workspaces multi-tenant**, construída com Node.js, TypeScript, Express e PostgreSQL (SQL puro).
+**API de autenticação, autorização e workspaces multi-tenant**, construída com Node.js, TypeScript, Express e PostgreSQL usando SQL puro.
 
-`Node.js` · `TypeScript (strict)` · `Express` · `PostgreSQL` · `Zod` · `JWT` · `Jest + Supertest`
+`Node.js` · `TypeScript (strict)` · `Express` · `PostgreSQL` · `Zod` · `JWT` · `bcrypt` · `Jest + Supertest`
 
 O projeto responde a duas perguntas centrais de qualquer backend multi-tenant:
 
 > **Quem é o usuário e o que ele pode ver ou fazer dentro de determinado workspace?**
 
-O foco não é a quantidade de endpoints, e sim decisões explícitas e justificadas: autenticação com refresh token rotativo, autorização por membership, validação na fronteira, isolamento entre tenants e proteção contra falhas comuns em APIs REST.
-
-## Destaques
-
-- **Papel por workspace, não por conta:** o mesmo usuário pode ser `admin` em um workspace e `viewer` em outro.
-- **Refresh token rotativo:** opaco, com apenas o hash SHA-256 no banco e revogação no logout.
-- **SQL puro e transações:** sem ORM, com constraints e atomicidade tratadas de forma explícita.
-- **Validação na fronteira:** Zod para payloads e para as variáveis de ambiente, com falha rápida no boot.
-- **Decisões documentadas:** cada escolha tem alternativa, motivo e trade-off, além de uma seção de limitações.
-
-<details>
-<summary><b>English summary</b></summary>
-
-AccessForge is a multi-tenant authentication and authorization API built with Node.js, TypeScript, Express and raw SQL on PostgreSQL. It features JWT access tokens, opaque rotating refresh tokens (stored as SHA-256 hashes), membership-based RBAC, Zod validation, centralized error handling, and an integration test suite (Jest + Supertest). It is a portfolio project focused on explicit, defensible security and data-modeling decisions.
-
-</details>
+O foco não é a quantidade de endpoints, mas decisões explícitas e justificadas: autenticação com refresh token rotativo, autorização por membership, validação de entrada, persistência relacional e tratamento de falhas em uma API REST.
 
 ## Sumário
 
-- [Destaques](#destaques)
-- [Status do projeto](#status-do-projeto)
-- [Como funciona](#como-funciona)
-- [Stack](#stack)
-- [Decisões técnicas](#decisões-técnicas)
-- [Segurança](#segurança)
-- [Rodando localmente](#rodando-localmente)
-- [Endpoints](#endpoints)
-- [Testes](#testes)
-- [Estrutura do projeto](#estrutura-do-projeto)
-- [Limitações conhecidas](#limitações-conhecidas)
-- [Roadmap](#roadmap)
-- [Fluxo de desenvolvimento](#fluxo-de-desenvolvimento)
-- [Autor](#autor)
+- [AccessForge](#accessforge)
+  - [Sumário](#sumário)
+  - [Destaques](#destaques)
+  - [Status](#status)
+  - [Como funciona](#como-funciona)
+    - [Modelo de dados](#modelo-de-dados)
+    - [Ciclo de vida dos tokens](#ciclo-de-vida-dos-tokens)
+    - [Decisão de acesso](#decisão-de-acesso)
+  - [Stack](#stack)
+  - [Decisões técnicas](#decisões-técnicas)
+  - [Segurança](#segurança)
+  - [Rodando localmente](#rodando-localmente)
+    - [Pré-requisitos](#pré-requisitos)
+    - [Instalação](#instalação)
+    - [Variáveis de ambiente](#variáveis-de-ambiente)
+    - [Migrations e execução](#migrations-e-execução)
+    - [Verificação de saúde](#verificação-de-saúde)
+  - [API](#api)
+  - [Testes](#testes)
+  - [Estrutura do projeto](#estrutura-do-projeto)
+  - [Limitações conhecidas](#limitações-conhecidas)
+  - [Roadmap](#roadmap)
+  - [Autor](#autor)
 
-## Status do projeto
+## Destaques
 
-| Área | Status |
-| --- | --- |
-| Registro e login com hash de senha (bcrypt) | Implementado |
-| Access token JWT e rota protegida `/me` | Implementado |
-| Refresh token opaco, rotação e logout (revogação) | Implementado |
-| Workspaces e memberships (criação transacional) | Implementado |
-| RBAC com papéis `owner`, `admin`, `member`, `viewer` | Implementado |
-| Validação de entrada com Zod | Implementado |
-| Configuração de ambiente validada no boot, CORS restrito, Helmet, cookies seguros | Implementado |
-| Tratamento centralizado de erros | Em andamento |
-| Autorização contextual por workspace e testes de isolamento entre tenants | Em andamento |
-| Logging estruturado | Planejado |
-| Seed com volume de dados e análise de índices (`EXPLAIN ANALYZE`) | Planejado |
-| Docker, CI, frontend e deploy | Planejado |
+- **Papel por workspace, não por conta:** o mesmo usuário pode ter papéis diferentes em workspaces distintos.
+- **Refresh token rotativo:** token opaco gerado com `crypto.randomBytes(32)`; só o hash SHA-256 é armazenado no banco.
+- **SQL puro e transações:** queries, constraints e operações transacionais explícitas, sem ORM.
+- **Validação com Zod:** schemas para payloads e para variáveis de ambiente.
+- **Configuração validada na inicialização:** variáveis obrigatórias ausentes ou inválidas impedem a aplicação de subir.
+
+## Status
+
+| Área                                                      | Implementado                                              | Testado                               |
+| --------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
+| Registro com hash de senha (bcrypt)                       | Sim                                                       | —                                     |
+| Login e access token JWT                                  | Sim                                                       | —                                     |
+| Refresh token opaco, rotação e revogação no logout        | Sim                                                       | —                                     |
+| Consulta do usuário autenticado (`/auth/me`)              | Sim                                                       | —                                     |
+| Criação transacional de workspace e membership do criador | Sim                                                       | —                                     |
+| Listagem de workspaces do usuário autenticado             | Sim                                                       | — (isolamento multi-tenant sem teste) |
+| Validação de payloads com Zod                             | Parcial: dados transformados não são propagados           | —                                     |
+| Configuração de ambiente, CORS, Helmet e cookies          | Sim                                                       | —                                     |
+| Tratamento centralizado de erros                          | Parcial                                                   | —                                     |
+| Autorização por papel (`requireRole`)                     | Somente no `PATCH /workspaces/:workspaceId`               | —                                     |
+| Leitura, atualização e exclusão de workspace por id       | Não: `GET` e `DELETE` retornam `501`; `PATCH` só autoriza | —                                     |
+| Logging estruturado                                       | Configurado                                               | —                                     |
+| Seed de volume e análise de índices                       | Scripts com erro conhecido                                | —                                     |
+| Docker, CI, frontend e deploy                             | Pendente                                                  | —                                     |
+
+`—` indica que a área ainda não tem teste automatizado registrado neste README.
 
 ## Como funciona
 
-Em aplicações multi-tenant, várias organizações compartilham a mesma aplicação sem poder acessar os dados umas das outras. No AccessForge, cada contexto de isolamento é um **workspace**, e um mesmo usuário pode ter papéis diferentes em workspaces diferentes (por exemplo, `admin` em um e `viewer` em outro).
+Em uma aplicação multi-tenant, várias organizações compartilham a mesma aplicação sem que uma possa acessar os dados da outra. No AccessForge, o **workspace** é o contexto organizacional. A associação entre usuário e workspace é registrada em `memberships`, que também referencia o papel do usuário naquele workspace.
 
-O papel **não** é uma propriedade global da conta. Ele vem da associação do usuário ao workspace:
+```text
+User → Membership → Workspace
+                   └→ Role → Permissions
+```
 
-```
-User → Membership → Workspace + Role → Permissions
-```
+O papel não é uma propriedade global da conta.
 
 ### Modelo de dados
 
@@ -78,12 +85,13 @@ erDiagram
     ROLES ||--o{ MEMBERSHIPS : define
     ROLES ||--o{ ROLE_PERMISSIONS : concede
     PERMISSIONS ||--o{ ROLE_PERMISSIONS : compoe
-    WORKSPACES ||--o{ RESOURCES : isola
 ```
+
+A migration inicial define usuários, workspaces, papéis, permissões, memberships e a associação entre papéis e permissões.
 
 ### Ciclo de vida dos tokens
 
-O access token tem vida curta. O refresh token é opaco, gerado com aleatoriedade criptográfica, e **só o hash SHA-256 fica no banco**. A cada renovação o token usado é revogado e um novo é emitido (rotação).
+O access token é um JWT com validade de uma hora. O refresh token é opaco, enviado em cookie `HttpOnly` e armazenado no banco apenas como hash SHA-256.
 
 ```mermaid
 sequenceDiagram
@@ -92,148 +100,162 @@ sequenceDiagram
     participant A as API
     participant DB as PostgreSQL
 
-    C->>A: POST /auth/login (email, senha)
-    A->>DB: busca usuário e valida senha (bcrypt)
-    A->>DB: grava hash SHA-256 do refresh token
-    A-->>C: access token (JWT) + refresh token (cookie)
+    C->>A: POST /auth/login
+    A->>DB: Busca usuário
+    A->>A: Verifica senha com bcrypt
+    A->>DB: Armazena hash do refresh token
+    A-->>C: Access token no JSON + refresh token em cookie
 
-    Note over C,A: o access token expira
+    Note over C,A: Access token expira
 
-    C->>A: POST /auth/refresh (refresh token)
-    A->>DB: busca pelo hash, valida expiração e revogação
-    alt token válido
-        A->>DB: revoga o token usado e grava o novo hash
-        A-->>C: novo access token + novo refresh token
-    else inexistente, expirado, revogado ou já usado
-        A-->>C: 401
+    C->>A: POST /auth/refresh com cookie
+    A->>DB: Localiza e bloqueia registro do refresh token
+    A->>DB: Verifica revogação e expiração
+    alt Token válido
+        A->>DB: Revoga token antigo e grava o novo hash
+        A-->>C: Novo access token + novo cookie
+    else Token inválido, expirado ou revogado
+        A-->>C: 401 Unauthorized
     end
 ```
 
-### Modelo de decisão de acesso
+O logout revoga o refresh token apresentado no cookie e limpa o cookie. Ele não invalida os access tokens já emitidos: `requireAuth` valida apenas assinatura e expiração do JWT.
 
-Estar autenticado não basta. Cada operação protegida verifica o vínculo do usuário com o workspace solicitado e o papel dele **naquele** workspace.
+### Decisão de acesso
+
+Rotas protegidas passam por `requireAuth`. O `PATCH /workspaces/:workspaceId` também executa `requireRole("owner", "admin")`, que consulta a membership do usuário naquele workspace.
 
 ```mermaid
-flowchart LR
-    R[Requisição] --> A[requireAuth: valida o JWT]
-    A --> M[Membership do usuário no workspace?]
-    M -->|não| N[Acesso negado]
-    M -->|sim| P[requireRole: o papel permite a ação?]
-    P -->|não| N
-    P -->|sim| H[Handler / service]
+flowchart TD
+    R[Requisição PATCH] --> A[requireAuth]
+    A -->|Token inválido| U[401 Unauthorized]
+    A -->|Token válido| M[Consulta membership]
+    M -->|Sem membership| F[403 Access denied]
+    M -->|Membership encontrada| P[Verifica papel]
+    P -->|Papel não permitido| I[403 Insufficient permissions]
+    P -->|owner ou admin| H[Segue para o handler]
 ```
+
+Essa autorização contextual existe hoje só nessa rota. As demais rotas de workspace por id ainda não a aplicam (ver [Limitações conhecidas](#limitações-conhecidas)).
 
 ## Stack
 
-| Tecnologia | Responsabilidade |
-| --- | --- |
-| Node.js + TypeScript (strict) | Runtime e tipagem estática |
-| Express | API REST e composição de middlewares |
-| PostgreSQL + `pg` | Persistência relacional, constraints e transações, com SQL puro |
-| Zod | Validação de entradas e das variáveis de ambiente |
-| JWT | Emissão e verificação de access tokens |
-| bcrypt | Hash de senhas |
-| `crypto` (Node) | Refresh tokens aleatórios e hashes SHA-256 |
-| Helmet + CORS | Cabeçalhos de segurança e origem permitida |
-| Jest + Supertest | Testes unitários e de integração |
+| Tecnologia           | Responsabilidade                                  |
+| -------------------- | ------------------------------------------------- |
+| Node.js + TypeScript | Runtime e tipagem estática                        |
+| Express              | API HTTP e composição de middlewares              |
+| PostgreSQL + `pg`    | Persistência relacional, constraints e transações |
+| Zod                  | Schemas de validação                              |
+| JWT                  | Emissão e verificação de access tokens            |
+| bcrypt               | Hash e comparação de senhas                       |
+| `crypto`             | Geração de refresh tokens e hash SHA-256          |
+| Helmet               | Cabeçalhos HTTP de segurança                      |
+| CORS                 | Controle das origens permitidas                   |
+| Cookie Parser        | Leitura dos cookies das requisições               |
+| Jest + Supertest     | Testes                                            |
 
 ## Decisões técnicas
 
-| Decisão | Alternativa descartada | Motivo | Trade-off |
-| --- | --- | --- | --- |
-| SQL puro com `pg` | ORM (Prisma) | Enxergar queries, constraints e transações sem abstração | Mais código manual, menos tipagem automática |
-| Papel por **membership** | Coluna `role` em `users` | Um usuário participa de vários workspaces com papéis distintos | Uma consulta a mais para resolver o papel |
-| Refresh token **opaco** com hash no banco | Refresh token em JWT | Revogável no servidor; vazamento do banco não expõe o token | Consulta ao banco a cada renovação |
-| **Rotação** de refresh tokens | Token fixo até expirar | Reduz a janela de uso de um token roubado | Fluxo de renovação mais complexo |
-| **Transação** ao criar workspace | Inserts separados | Workspace e vínculo do `owner` são confirmados juntos ou revertidos | Exige controle explícito de conexão |
-| Validação com **Zod** na fronteira | Validação manual nos serviços | Uma fonte de verdade para validar e inferir tipos | Dependência adicional |
-| **Runner de migrations próprio** (`migrate.ts`) | Ferramenta pronta | Entender como migrations funcionam por dentro | Sem rollback automático nem controle de concorrência |
+| Decisão                               | Alternativa               | Motivo                                          | Trade-off                                                                     |
+| ------------------------------------- | ------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| SQL puro com `pg`                     | ORM, como Prisma          | Queries, constraints e transações explícitas    | Mais código manual e menos tipagem automática das consultas                   |
+| Papel por membership                  | Coluna `role` em `users`  | Papéis distintos por workspace                  | Consulta adicional para resolver o papel                                      |
+| Refresh token opaco com hash no banco | Refresh token em JWT      | Revogação no servidor sem guardar o token bruto | Consulta ao banco a cada renovação                                            |
+| Rotação de refresh tokens             | Token fixo até expirar    | Reduz a reutilização de tokens antigos          | Fluxo de renovação mais complexo                                              |
+| Transação ao criar workspace          | Inserts independentes     | Workspace e membership criados atomicamente     | Controle explícito de conexão e rollback                                      |
+| Zod para validação                    | Validação manual dispersa | Regras de entrada centralizadas                 | Dependência extra; transformações precisam ser propagadas                     |
+| Runner próprio de migrations          | Ferramenta pronta         | Controle do processo de aplicação               | Mais responsabilidade por versionamento, concorrência e recuperação de falhas |
 
 ## Segurança
 
-Referências: OWASP Top 10 e **OWASP API Security Top 10 (2023)**.
+Referências: OWASP Top 10 e OWASP API Security Top 10 (2023). A tabela descreve mecanismos do projeto, não certificação de conformidade.
 
-| Risco | Mitigação | Referência |
-| --- | --- | --- |
-| Quebra de autenticação | bcrypt, JWT com expiração, refresh token aleatório com hash no banco, rotação e revogação | API2:2023 |
-| BOLA / IDOR | Autorização por recurso e workspace, nunca só por ID | API1:2023 |
-| Escalada de privilégios | RBAC por membership e verificação de papel por rota | API5:2023 |
-| Configuração insegura | Variáveis validadas no boot, CORS com origem explícita, Helmet, cookies `HttpOnly`/`Secure`/`SameSite` | API8:2023 |
-| Entradas malformadas | Schemas Zod antes da lógica de negócio | n/a |
-| Vazamento de informação | Error handler central: sem stack traces, segredos ou hashes nas respostas | n/a |
-
-Essas medidas não constituem certificação de conformidade com o OWASP. A eficácia depende da implementação de cada endpoint e da cobertura de testes, e as lacunas atuais estão em [Limitações conhecidas](#limitações-conhecidas).
+| Risco                   | Mecanismo                                         | Observação                                           |
+| ----------------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| Quebra de autenticação  | bcrypt, JWT com expiração, refresh token rotativo | O logout não invalida access tokens já emitidos      |
+| BOLA / IDOR             | Membership e autorização contextual               | Cobertura incompleta nas rotas de workspace          |
+| Escalada de privilégios | Middleware `requireRole`                          | Aplicado hoje só ao `PATCH`                          |
+| Configuração insegura   | Validação de ambiente, CORS, Helmet, cookies      | Depende da configuração do ambiente e do cliente     |
+| Entradas inválidas      | Schemas Zod                                       | O middleware não propaga `result.data` ao `req.body` |
+| Vazamento de informação | Resposta genérica para erros não tratados         | Alguns erros diretos têm mensagens específicas       |
+| Força bruta             | Não há rate limiting                              | Limitação conhecida                                  |
 
 ## Rodando localmente
 
-**Pré-requisitos:** Node.js (LTS), npm, PostgreSQL e Git.
+### Pré-requisitos
+
+Node.js compatível com as dependências do projeto, npm, PostgreSQL e Git.
+
+### Instalação
 
 ```bash
-# 1. Clonar e instalar
 git clone <URL_DO_REPOSITORIO>
 cd workspace_auth
 npm install
-
-# 2. Configurar o ambiente
-cp .env.example .env        # no Windows (PowerShell): Copy-Item .env.example .env
-
-# 3. Criar o banco (no psql)
-#    CREATE DATABASE workspace_auth;
-
-# 4. Aplicar as migrations
-npm run migrate
-
-# 5. Iniciar a API
-npm run dev
+cp .env.example .env
 ```
 
-Confira se está no ar: `GET http://localhost:3000/health`.
+No PowerShell: `Copy-Item .env.example .env`.
+
+Crie o banco e configure o `.env`:
+
+```sql
+CREATE DATABASE workspace_auth;
+```
 
 ### Variáveis de ambiente
 
-| Variável | Descrição | Exemplo |
-| --- | --- | --- |
-| `PORT` | Porta HTTP | `3000` |
-| `DATABASE_URL` | String de conexão do PostgreSQL | `postgresql://postgres:senha@localhost:5432/workspace_auth` |
-| `JWT_SECRET` | Segredo de assinatura dos JWTs | gerado (veja abaixo) |
-| `FRONTEND_ORIGIN` | Origem permitida pelo CORS | `http://localhost:5173` |
+| Variável          | Descrição                                    | Exemplo                                                     |
+| ----------------- | -------------------------------------------- | ----------------------------------------------------------- |
+| `PORT`            | Porta HTTP (obrigatória)                     | `3000`                                                      |
+| `DATABASE_URL`    | String de conexão PostgreSQL (obrigatória)   | `postgresql://postgres:senha@localhost:5432/workspace_auth` |
+| `JWT_SECRET`      | Segredo de assinatura dos JWTs (obrigatória) | valor aleatório forte                                       |
+| `FRONTEND_ORIGIN` | Origem permitida pelo CORS (obrigatória)     | `http://localhost:5173`                                     |
+| `NODE_ENV`        | Ambiente                                     | `development`, `test` ou `production`; padrão `development` |
 
-A aplicação **falha na inicialização** se alguma variável obrigatória estiver ausente ou inválida. Para gerar um `JWT_SECRET` forte:
+Para gerar um segredo:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-> Nunca versione o `.env`. O repositório mantém apenas o `.env.example`, sem segredos reais.
+Nunca versione o `.env` nem credenciais reais.
 
-## Endpoints
-
-| Método | Rota | Auth | Descrição |
-| --- | --- | :---: | --- |
-| `GET` | `/health` | não | Estado da aplicação e conectividade com o banco |
-| `POST` | `/auth/register` | não | Cria um usuário |
-| `POST` | `/auth/login` | não | Autentica e emite access token e refresh token |
-| `POST` | `/auth/refresh` | cookie | Renova a sessão com rotação do refresh token |
-| `POST` | `/auth/logout` | cookie | Revoga o refresh token |
-| `GET` | `/me` | JWT | Retorna o usuário autenticado |
-| `POST` | `/workspaces` | JWT | Cria um workspace e registra o criador como `owner` |
-
-Exemplo rápido:
+### Migrations e execução
 
 ```bash
-# registrar
-curl -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ana@exemplo.com","password":"SenhaForte123!"}'
-
-# login
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ana@exemplo.com","password":"SenhaForte123!"}'
-
-# rota protegida (use o access token retornado no login)
-curl http://localhost:3000/me -H "Authorization: Bearer <ACCESS_TOKEN>"
+npm run migrate
+npm run dev
 ```
+
+A aplicação imprime a porta em que subiu. Com `PORT=3000`, a URL local é `http://localhost:3000`.
+
+> **Atenção:** a migration de índice referencia `users.username`, mas a migration inicial define `users.name`. Enquanto isso não for corrigido, `npm run migrate` falha em um banco novo. Ver [Limitações conhecidas](#limitações-conhecidas).
+
+### Verificação de saúde
+
+```bash
+curl http://localhost:3000/health
+```
+
+Com o banco acessível: `200` e `{"status":"ok","database":"ok"}`. Se a consulta falhar: `503` e `{"status":"error","database":"unavailable"}`.
+
+## API
+
+Contratos completos (payloads, respostas, cookies, formatos de erro e exemplos `curl`) em **[docs/API.md](docs/API.md)**.
+
+| Método | Rota             | Autenticação          | Descrição                                          |
+| ------ | ---------------- | --------------------- | -------------------------------------------------- |
+| `GET`  | `/health`        | Pública               | Verifica a conectividade com o PostgreSQL          |
+| `POST` | `/auth/register` | Pública               | Registra um usuário                                |
+| `POST` | `/auth/login`    | Pública               | Autentica e emite os tokens                        |
+| `GET`  | `/auth/me`       | Bearer JWT            | Retorna o usuário autenticado                      |
+| `POST` | `/auth/refresh`  | Cookie `refreshToken` | Renova o access token e rotaciona o refresh token  |
+| `POST` | `/auth/logout`   | Cookie opcional       | Revoga o refresh token e limpa o cookie            |
+| `GET`  | `/workspaces`    | Bearer JWT            | Lista os workspaces do usuário                     |
+| `POST` | `/workspaces`    | Bearer JWT            | Cria um workspace e associa o criador como `owner` |
+
+As rotas `GET`, `PATCH` e `DELETE /workspaces/:id` ainda não estão concluídas e fazem parte do [Roadmap](#roadmap).
 
 ## Testes
 
@@ -241,58 +263,95 @@ curl http://localhost:3000/me -H "Authorization: Bearer <ACCESS_TOKEN>"
 npm test
 ```
 
-A suíte usa **Jest + Supertest**, com testes de integração rodando contra PostgreSQL. Ela cobre:
+O projeto usa Jest e Supertest.
 
-- registro, login e validação de credenciais;
-- verificação de access tokens e rotas protegidas;
-- criação, rotação, expiração e revogação de refresh tokens;
-- respostas de erro padronizadas;
-- regras de autorização por papel.
+**Resultado da última execução:** `<colar aqui a saída de npm test: suítes, testes passando e falhando>`
 
-Em sistemas multi-tenant, o teste mais importante é o **acesso cruzado**: um usuário de um workspace não pode ler nem alterar recursos de outro. Ampliar essa cobertura é prioridade (veja o [Roadmap](#roadmap)).
+Cenários prioritários para a suíte:
+
+- Registro, login e credenciais inválidas.
+- Token ausente, inválido e expirado.
+- Rotação, expiração e revogação de refresh tokens.
+- Criação transacional de workspace e membership.
+- Autorização por papel.
+- Isolamento entre tenants: com dois usuários e workspaces diferentes, a listagem de um não retorna dados do outro.
+- Comportamento do access token depois do logout.
 
 ## Estrutura do projeto
 
-```
-.
-├── migrations/          # arquivos .sql versionados
+```text
+workspace_auth/
+├── migrations/
+│   ├── 001_init.sql
+│   └── ...
 ├── src/
-│   ├── config/          # variáveis de ambiente validadas
-│   ├── db/              # Pool do pg e runner de migrations (migrate.ts)
-│   ├── middlewares/     # requireAuth, requireRole, validação, error handler
-│   ├── routes/          # definição dos endpoints
-│   ├── schemas/         # schemas Zod
-│   ├── services/        # regras de negócio
-│   └── index.ts         # entrada da aplicação
-├── .env.example
+│   ├── config/
+│   │   ├── env.ts
+│   │   └── logger.ts
+│   ├── controllers/
+│   │   ├── authController.ts
+│   │   ├── userController.ts
+│   │   └── workspace.Controller.ts
+│   ├── db/
+│   │   ├── pool.ts
+│   │   └── migrate.ts
+│   ├── middlewares/
+│   │   ├── errorHandler.ts
+│   │   ├── requireAuth.ts
+│   │   ├── requireRole.ts
+│   │   └── validate.ts
+│   ├── routes/
+│   │   ├── auth.routes.ts
+│   │   ├── health.routes.ts
+│   │   └── workspaces.routes.ts
+│   ├── schemas/
+│   │   ├── auth.schemas.ts
+│   │   ├── env.schema.ts
+│   │   └── workspaces.schemas.ts
+│   ├── services/
+│   │   ├── auth.services.ts
+│   │   ├── refresh-token.service.ts
+│   │   ├── user.services.ts
+│   │   └── workspace.services.ts
+│   ├── errors.ts
+│   ├── index.ts
+│   └── server.ts
+├── docs/
+│   └── API.md
+├── package.json
+├── tsconfig.json
 └── README.md
 ```
 
 ## Limitações conhecidas
 
-Documentar o que **não** está coberto faz parte do projeto:
-
-- **Sem rate limiting** no login ou na renovação de tokens, o que deixa a API exposta a força bruta (API4:2023). Está planejado.
-- **Sem token CSRF dedicado.** A proteção do cookie de refresh depende de `SameSite` e de CORS restrito.
-- **Access tokens não são revogáveis** antes de expirar (JWT sem estado). Por isso a vida curta.
-- **Sem frontend, CI, Docker e deploy** por enquanto. A configuração de CORS já está preparada para o frontend.
+- **Validação Zod:** o middleware valida o body, mas não atribui `result.data` a `req.body`. Transformações como `trim()` e `toLowerCase()` não chegam aos serviços.
+- **Migration de índice:** usa `users.username`, mas a tabela inicial define `users.name`. A migration falha em um banco novo.
+- **Seed de volume:** referencia `users.username` e usa um placeholder literal no lugar do hash de senha.
+- **Script `start`:** aponta para `dist/index.js`, enquanto o desenvolvimento inicia `src/server.ts`. O caminho de saída do build precisa ser alinhado ao `tsconfig.json`.
+- **`GET /auth/me`:** se o usuário do token não existe mais, o serviço lança um erro genérico e a resposta é `500`.
+- **Rotas de workspace por id:** `GET` e `DELETE /workspaces/:id` retornam `501` e estão registradas sem autenticação. `PATCH /workspaces/:workspaceId` só verifica a autorização e retorna uma mensagem fixa, sem atualizar dados.
+- **Revogação de access token:** o logout revoga o refresh token, mas os JWTs já emitidos valem até expirar.
+- **Rate limiting:** não há limitação de tentativas em login ou refresh.
+- **CSRF:** não há token CSRF dedicado. A proteção depende de `SameSite=Lax` no cookie e da configuração de CORS.
+- **Tratamento de erros:** parte das respostas sai direto dos middlewares e controllers, fora do handler central.
+- **Isolamento multi-tenant:** a listagem filtra por `m.user_id`, mas ainda não existe teste ponta a ponta com dois usuários.
 
 ## Roadmap
 
-- [ ] Consolidar a autorização contextual por workspace
-- [ ] Ampliar os testes de isolamento multi-tenant
-- [ ] Concluir o tratamento centralizado de erros
-- [ ] Adicionar logging estruturado
-- [ ] Medir o PostgreSQL com dados em volume e criar índices guiados por `EXPLAIN ANALYZE`
-- [ ] Containerizar com Docker e automatizar testes com CI
-- [ ] Documentar os contratos HTTP (OpenAPI)
-- [ ] Frontend e deploy
-
-## Fluxo de desenvolvimento
-
-- **Commits pequenos e descritivos**, um por etapa lógica (por exemplo: emissão do refresh token, rotação, logout, testes).
-- **`DEVLOG.md`** com uma linha por sessão de trabalho, registrando o que foi feito e as decisões tomadas.
-- **Evolução incremental:** cada etapa só avança quando a anterior está coberta por testes.
+- [ ] Propagar os dados transformados pelo Zod ao controller.
+- [ ] Corrigir as referências a `users.username` nas migrations e no seed.
+- [ ] Alinhar `start`, build e `tsconfig.json`.
+- [ ] Implementar leitura, atualização e exclusão de workspaces com autorização contextual.
+- [ ] Testes de isolamento multi-tenant.
+- [ ] Testes de rotação, revogação e expiração de tokens.
+- [ ] Uniformizar o tratamento de erros.
+- [ ] Seed de volume e análise de índices com `EXPLAIN ANALYZE`.
+- [ ] Rate limiting nas operações sensíveis.
+- [ ] Avaliar proteção CSRF conforme o modelo de cliente.
+- [ ] Docker e CI.
+- [ ] Especificação OpenAPI.
+- [ ] Frontend e deploy.
 
 ## Autor
 
