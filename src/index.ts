@@ -1,11 +1,11 @@
+
 import express from "express";
-import { pool } from "./db/pool";
 import healthRoute from "./routes/health.routes.js";
-import authRoutes from "./routes/auth.routes";
+import authRoutes from "./routes/auth.routes.js";
 import workspaceRoutes from "./routes/workspaces.routes.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { env } from "./config/env";
+import { env } from "./config/env.js";
 import helmet from "helmet";
 import { errorHandler } from "./middlewares/errorHandler.js";
 
@@ -32,9 +32,9 @@ app.use(helmet());
 
 app.use(healthRoute);
 app.use("/auth", authRoutes);
-
 app.use("/workspaces", workspaceRoutes);
-app.use((req, res) => {
+
+app.use((_req, res) => {
   res.status(404).json({
     error: "Route not found",
   });
