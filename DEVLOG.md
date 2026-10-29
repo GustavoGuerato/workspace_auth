@@ -182,4 +182,18 @@ A implementação da listagem protegida e os testes de integração estão concl
 ### Pendências
 
 - Preencher o hash do commit no topo de `docs/API.md`.
-- [Decidir quando tratar cada achado, em commits separados.]
+- [Decidir quando tratar cada achado, em commits separados.
+- ### Dia 20 — Workspace Members Endpoint and Integration Tests
+
+- **Endpoint:** `GET /workspaces/:workspaceId/members` — implemented and verified.
+- **Authentication:** requests without a token return `401`.
+- **Authorization:** workspace membership is checked; users without membership receive `403 Access denied`.
+- **Input validation:** malformed workspace UUIDs return `400`.
+- **Response contract:** returns only `id`, `name`, and `role`.
+- **Deterministic ordering:** members are ordered by name and then by ID.
+- **Database query:** parameterized SQL; index on `memberships.workspace_id` identified.
+- **Integration tests:** added coverage for listing workspace members as the owner and denying access to a user without membership.
+- **Test results:** 10 test suites passed; 33 tests passed.
+- **Pending verification:** complete manual security matrix, `EXPLAIN ANALYZE`, documentation review, and remaining frontend integration work.
+- **Known limitations:** pagination has not been implemented; authorization and member retrieval are separate operations.
+- **Commit:** `test: add workspace members integration coverage` (use only if this is the actual commit message).

@@ -139,6 +139,38 @@ describe("Workspaces — testes de integração", () => {
     });
   });
 
+  it("deve listar os membros do workspace para o owner", async () => {
+    const response = await request(app)
+      .get(`/workspaces/${workspaceAId}/members`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([
+      {
+        id: userAId,
+        name: userA.name,
+        role: "owner",
+      },
+    ]);
+
+    for (const member of response.body) {
+      expect(Object.keys(member).sort()).toEqual(
+        ["id", "name", "role"].sort(),
+      );
+    }
+  });
+
+  it("deve negar a listagem de membros para usuário sem vínculo", async () => {
+    const response = await request(app)
+      .get(`/workspaces/${workspaceAId}/members`)
+      .set("Authorization", `Bearer ${tokenB}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({
+      error: "Access denied",
+    });
+  });
+
   afterAll(async () => {
     try {
       if (workspaceAId) {

@@ -9,6 +9,7 @@ Legenda de evidência usada neste documento:
 
 - **[exec]** comportamento observado ao executar a requisição contra o servidor rodando.
 - **[código]** comportamento lido no código, não executado.
+- **[teste]** coberto por teste de integração existente no repositório (`src/tests/`); o teste foi lido, não executado ao escrever esta seção.
 
 ## Sumário
 
@@ -68,6 +69,7 @@ O valor é um token opaco (32 bytes aleatórios em hexadecimal). O banco guarda 
 | Sem header `Authorization: Bearer` | 401 | `{"error":"Authentication token is required"}` [exec] |
 | JWT expirado | 401 | `{"error":"Authentication token expired"}` [exec] |
 | JWT inválido (malformado, outra assinatura, `alg=none`, sem `sub`) | 401 | `{"error":"Invalid authentication token"}` [exec] |
+| Parâmetro de rota inválido (`validateParams`) | 400 | `{"error":"Validation error"}` (sem `details`) [código] |
 | Sem membership no workspace | 403 | `{"error":"Access denied"}` [exec] |
 | Papel sem permissão | 403 | `{"error":"Insufficient permissions"}` [exec] |
 
@@ -80,6 +82,8 @@ Observações:
 ### Precedência quando mais de uma condição falha
 
 Nas rotas protegidas a ordem é: **autenticação → (autorização por papel, quando existe) → validação do corpo → controller**. Confirmado em `POST /workspaces`: sem token e com corpo inválido responde `401`, não `400` [exec]. Em `PATCH /workspaces/:workspaceId`, sem token e com id inválido responde `401` [exec].
+
+Em `GET /workspaces/:workspaceId/members` a ordem é **autenticação → validação do parâmetro → papel/membership → controller** [código]: sem token e com id malformado responde `401`; com token válido e id malformado responde `400`, antes de consultar o banco; com id válido e sem membership responde `403`.
 
 ### Validação e normalização
 
@@ -120,8 +124,9 @@ Origem permitida: apenas `FRONTEND_ORIGIN`, mais requisições sem header `Origi
 | 9 | `PATCH /workspaces/:workspaceId` | Bearer + papel `owner`/`admin` | **incompleto**: só autoriza, não altera dados |
 | 10 | `GET /workspaces/:id` | nenhuma | **incompleto**: `501` |
 | 11 | `DELETE /workspaces/:id` | nenhuma | **incompleto**: `501` |
+| 12 | `GET /workspaces/:workspaceId/members` | Bearer + qualquer papel no workspace | estável (Dia 20) |
 
-São 11 rotas registradas; 8 são o contrato estável, 3 são rotas incompletas descritas ao final desta seção.
+São 12 rotas registradas; 9 são o contrato estável (8 do Dia 19 mais a listagem de membros), 3 são rotas incompletas descritas ao final da seção de endpoints.
 
 ## Fluxo de autenticação
 
@@ -349,6 +354,52 @@ curl -i -X PATCH http://localhost:3000/workspaces/<WORKSPACE_ID> \
 
 Placeholders. Sem autenticação e sem efeito: respondem `501 {"message":"not implemented"}` (formato diferente do padrão `{"error":...}`) [exec]. Depois do `DELETE`, o workspace continua existindo [exec].
 
+### 12. `GET /workspaces/:workspaceId/members`
+
+Lista os membros de **um** workspace, com o papel de cada um **naquele workspace**.
+
+- **Autenticação:** Bearer. Autorização: o usuário precisa ter membership no workspace do parâmetro, com qualquer um dos papéis `owner`, `admin`, `member` ou `viewer` (`requireRole` com os quatro papéis semeados) [código].
+- **Parâmetro de rota:**
+
+| Parâmetro | Tipo | Regras |
+|---|---|---|
+| `workspaceId` | string | UUID (validado com Zod `z.string().uuid()` antes de consultar o banco) |
+
+- **Sucesso:** `200` com array ordenado por `name` crescente e, no empate, por `id` crescente [código]:
+
+```json
+[
+  { "id": "<uuid do usuário>", "name": "Ana", "role": "owner" },
+  { "id": "<uuid do usuário>", "name": "Bruno", "role": "member" }
+]
+```
+
+  | Campo | Origem | Observação |
+  |---|---|---|
+  | `id` | `users.id` | id do **usuário**, não da membership |
+  | `name` | `users.name` | nome do usuário; aqui o campo se chama `name`, enquanto `/auth/me` e o login usam `username` para o mesmo dado |
+  | `role` | `roles.name` | papel **neste workspace** (`owner`, `admin`, `member`, `viewer`) |
+
+  Só esses três campos saem; e-mail e dados internos não são retornados [código; teste: confere as chaves `id`, `name`, `role`].
+- **Erros:**
+
+| Status | Quando | Corpo |
+|---|---|---|
+| 401 | sem token, esquema diferente de `Bearer`, token inválido ou expirado | ver convenções [código] |
+| 400 | `workspaceId` que não é UUID | `{"error":"Validation error"}`, sem `details` [código] |
+| 403 | usuário sem membership no workspace, **inclusive UUID que não existe** (mesma resposta, sem revelar a existência) | `{"error":"Access denied"}` [código; teste cobre usuário sem vínculo] |
+| 500 | falha inesperada (ex.: banco indisponível) | `{"error":"Internal server error"}` [código] |
+
+  `Insufficient permissions` não ocorre aqui hoje, porque os quatro papéis semeados são aceitos [código].
+- **Repetição:** leitura, segura e idempotente. A ordem é determinística (`name`, `id`) [código].
+- **Isolamento:** a verificação de membership e a listagem usam o mesmo `workspaceId` da URL; o usuário só enxerga os membros de workspaces dos quais participa [código; teste: o owner lista, o usuário sem vínculo recebe `403`].
+- **Notas:** a resposta nunca é vazia para quem passa na autorização, pois o próprio chamador é membro. A lista não é paginada.
+
+```bash
+curl -i http://localhost:3000/workspaces/<WORKSPACE_ID>/members \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
 ## Limitações conhecidas
 
 Cada item é um fato observado; nenhum é corrigido neste documento. Classificação: **segurança**, **consistência de contrato**, **incompleto**, **operacional**.
@@ -356,7 +407,7 @@ Cada item é um fato observado; nenhum é corrigido neste documento. Classifica�
 | # | Limitação | Classe | Evidência |
 |---|---|---|---|
 | 1 | `validate` não propaga o resultado do Zod: e-mail e slug gravados crus (espaços, maiúsculas); login com e-mail normalizado falha | consistência de contrato | exec |
-| 2 | Falhas de infraestrutura e entrada comum viram `500`: JSON malformado, corpo acima de 100 kB, `Origin` não permitida (CORS), `workspaceId` não-UUID, `/auth/me` de usuário apagado. O esperado seria `400`/`413`/`403`/`404` | consistência de contrato | exec |
+| 2 | Falhas de infraestrutura e entrada comum viram `500`: JSON malformado, corpo acima de 100 kB, `Origin` não permitida (CORS), `workspaceId` não-UUID em `PATCH /workspaces/:workspaceId`, `/auth/me` de usuário apagado. O esperado seria `400`/`413`/`403`/`404`. (`GET /workspaces/:workspaceId/members` já valida o UUID e responde `400`.) | consistência de contrato | exec |
 | 3 | `401` sem `WWW-Authenticate`. A especificação HTTP pede esse header em respostas `401`; a leitura do RFC 9110 não foi verificada diretamente (só o draft antecessor `draft-ietf-httpbis-p7-auth`) | consistência de contrato | exec (ausência); norma não verificada |
 | 4 | Sem detecção de reuso de refresh token: o token novo segue válido depois de um reuso do antigo | segurança | exec |
 | 5 | Cada login cria um refresh token sem revogar os anteriores; não há limite de sessões ativas | segurança | exec |
@@ -372,6 +423,10 @@ Cada item é um fato observado; nenhum é corrigido neste documento. Classifica�
 | 15 | Script `npm start` aponta para `dist/index.js`, mas o servidor sobe em `server.ts` | operacional | código |
 | 16 | `.env.example` lista só `PORT` e `DATABASE_URL`; o ambiente exige também `JWT_SECRET` e `FRONTEND_ORIGIN` | operacional | código |
 | 17 | `npm test` passa (10 suítes, 31 testes) mas o Jest avisa que não encerra sozinho (handles abertos) | operacional | exec |
+| 18 | `GET /workspaces/:workspaceId/members` não tem paginação: devolve todos os membros do workspace | incompleto | código |
+| 19 | A autorização (`requireRole`) e a listagem são duas consultas separadas, sem transação: uma remoção de membership entre elas ainda permite uma resposta | segurança (baixa) | código |
+| 20 | O campo do nome do usuário é `name` em `GET /workspaces/:workspaceId/members` e `username` em `/auth/me` e no login | consistência de contrato | código |
+| 21 | Não medido: `EXPLAIN ANALYZE` da consulta de membros; a unicidade `(user_id, workspace_id)` tem `user_id` à esquerda, então o filtro só por `workspace_id` pode não usar esse índice | operacional | código |
 
 ## Como reproduzir
 
