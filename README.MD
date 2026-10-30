@@ -4,6 +4,8 @@
 
 `Node.js` · `TypeScript (strict)` · `Express` · `PostgreSQL` · `Zod` · `JWT` · `bcrypt` · `Jest + Supertest`
 
+Este repositório (`workspace_auth`) é o backend do projeto AccessForge. O frontend em React está em [AccessForge_WEB](https://github.com/GustavoGuerato/AccessForge_WEB).
+
 O projeto responde a duas perguntas centrais de qualquer backend multi-tenant:
 
 > **Quem é o usuário e o que ele pode ver ou fazer dentro de determinado workspace?**
@@ -41,29 +43,31 @@ O foco não é a quantidade de endpoints, mas decisões explícitas e justificad
 - **Papel por workspace, não por conta:** o mesmo usuário pode ter papéis diferentes em workspaces distintos.
 - **Refresh token rotativo:** token opaco gerado com `crypto.randomBytes(32)`; só o hash SHA-256 é armazenado no banco.
 - **SQL puro e transações:** queries, constraints e operações transacionais explícitas, sem ORM.
-- **Validação com Zod:** schemas para payloads e para variáveis de ambiente.
+- **Validação com Zod:** schemas para payloads, parâmetros de rota e variáveis de ambiente.
 - **Configuração validada na inicialização:** variáveis obrigatórias ausentes ou inválidas impedem a aplicação de subir.
+- **Testes de integração:** 10 suítes e 33 testes registrados no DEVLOG, incluindo rotação de refresh token e acesso negado a quem não é membro do workspace.
 
 ## Status
 
-| Área                                                      | Implementado                                              | Testado                               |
-| --------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
-| Registro com hash de senha (bcrypt)                       | Sim                                                       | —                                     |
-| Login e access token JWT                                  | Sim                                                       | —                                     |
-| Refresh token opaco, rotação e revogação no logout        | Sim                                                       | —                                     |
-| Consulta do usuário autenticado (`/auth/me`)              | Sim                                                       | —                                     |
-| Criação transacional de workspace e membership do criador | Sim                                                       | —                                     |
-| Listagem de workspaces do usuário autenticado             | Sim                                                       | — (isolamento multi-tenant sem teste) |
-| Validação de payloads com Zod                             | Parcial: dados transformados não são propagados           | —                                     |
-| Configuração de ambiente, CORS, Helmet e cookies          | Sim                                                       | —                                     |
-| Tratamento centralizado de erros                          | Parcial                                                   | —                                     |
-| Autorização por papel (`requireRole`)                     | Somente no `PATCH /workspaces/:workspaceId`               | —                                     |
-| Leitura, atualização e exclusão de workspace por id       | Não: `GET` e `DELETE` retornam `501`; `PATCH` só autoriza | —                                     |
-| Logging estruturado                                       | Configurado                                               | —                                     |
-| Seed de volume e análise de índices                       | Scripts com erro conhecido                                | —                                     |
-| Docker, CI, frontend e deploy                             | Pendente                                                  | —                                     |
+| Área                                                      | Implementado                                                               | Testado                                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Registro com hash de senha (bcrypt)                       | Sim                                                                        | Não                                                                                              |
+| Login e access token JWT                                  | Sim                                                                        | Sim (integração e service); credenciais inválidas sem teste                                      |
+| Refresh token opaco, rotação e revogação no logout        | Sim                                                                        | Sim (integração: rotação e logout; service: criação, expiração e revogação)                      |
+| Consulta do usuário autenticado (`/auth/me`)              | Sim                                                                        | Não                                                                                              |
+| Criação transacional de workspace e membership do criador | Sim                                                                        | Não                                                                                              |
+| Listagem de workspaces do usuário autenticado             | Sim                                                                        | Parcial: o usuário B não vê o workspace do usuário A (um workspace, dois usuários)               |
+| Listagem de membros do workspace                          | Sim, sem paginação                                                         | Sim: o owner lista os membros; quem não é membro recebe `403`. Outros papéis sem teste           |
+| Validação de payloads com Zod                             | Parcial: dados transformados não são propagados                            | Não                                                                                              |
+| Configuração de ambiente, CORS, Helmet e cookies          | Sim                                                                        | Parcial: testes de CORS e de cabeçalhos                                                          |
+| Tratamento centralizado de erros                          | Parcial                                                                    | Parcial: teste do `errorHandler`                                                                 |
+| Autorização por papel (`requireRole`)                     | `PATCH /workspaces/:workspaceId` (owner ou admin) e listagem de membros    | Sim: teste do middleware e `403` para quem tenta alterar workspace alheio                        |
+| Leitura, atualização e exclusão de workspace por id       | Não: `GET` e `DELETE` retornam `501`; `PATCH` só autoriza                  | —                                                                                                |
+| Logging estruturado                                       | Configurado                                                                | —                                                                                                |
+| Seed de volume e análise de índices                       | Scripts com erro conhecido                                                 | —                                                                                                |
+| Docker, CI e deploy                                       | Pendente                                                                   | —                                                                                                |
 
-`—` indica que a área ainda não tem teste automatizado registrado neste README.
+`—` indica que a área não tem teste automatizado neste repositório.
 
 ## Como funciona
 
@@ -87,7 +91,7 @@ erDiagram
     PERMISSIONS ||--o{ ROLE_PERMISSIONS : compoe
 ```
 
-A migration inicial define usuários, workspaces, papéis, permissões, memberships e a associação entre papéis e permissões.
+As migrations definem usuários, workspaces, papéis, permissões, memberships, a associação entre papéis e permissões e a tabela de refresh tokens.
 
 ### Ciclo de vida dos tokens
 
@@ -119,24 +123,27 @@ sequenceDiagram
     end
 ```
 
-O logout revoga o refresh token apresentado no cookie e limpa o cookie. Ele não invalida os access tokens já emitidos: `requireAuth` valida apenas assinatura e expiração do JWT.
+O logout revoga o refresh token apresentado no cookie e limpa o cookie. Ele não invalida os access tokens já emitidos: `requireAuth` valida apenas assinatura e expiração do JWT. Apresentar de novo um refresh token já revogado devolve `401`, mas não revoga os demais tokens do usuário (não há detecção de reuso).
 
 ### Decisão de acesso
 
-Rotas protegidas passam por `requireAuth`. O `PATCH /workspaces/:workspaceId` também executa `requireRole("owner", "admin")`, que consulta a membership do usuário naquele workspace.
+Rotas protegidas passam por `requireAuth`. As rotas com `:workspaceId` também executam `requireRole`, que consulta a membership do usuário naquele workspace e compara o papel com a lista permitida da rota:
+
+- `PATCH /workspaces/:workspaceId`: apenas `owner` e `admin`.
+- `GET /workspaces/:workspaceId/members`: qualquer papel (`owner`, `admin`, `member`, `viewer`), ou seja, basta ser membro.
 
 ```mermaid
 flowchart TD
-    R[Requisição PATCH] --> A[requireAuth]
+    R[Requisição com :workspaceId] --> A[requireAuth]
     A -->|Token inválido| U[401 Unauthorized]
     A -->|Token válido| M[Consulta membership]
     M -->|Sem membership| F[403 Access denied]
-    M -->|Membership encontrada| P[Verifica papel]
+    M -->|Membership encontrada| P[Verifica papel permitido na rota]
     P -->|Papel não permitido| I[403 Insufficient permissions]
-    P -->|owner ou admin| H[Segue para o handler]
+    P -->|Papel permitido| H[Segue para o handler]
 ```
 
-Essa autorização contextual existe hoje só nessa rota. As demais rotas de workspace por id ainda não a aplicam (ver [Limitações conhecidas](#limitações-conhecidas)).
+As rotas `GET` e `DELETE /workspaces/:id` ainda não aplicam essa autorização (ver [Limitações conhecidas](#limitações-conhecidas)).
 
 ## Stack
 
@@ -152,6 +159,7 @@ Essa autorização contextual existe hoje só nessa rota. As demais rotas de wor
 | Helmet               | Cabeçalhos HTTP de segurança                      |
 | CORS                 | Controle das origens permitidas                   |
 | Cookie Parser        | Leitura dos cookies das requisições               |
+| Pino                 | Logging estruturado                               |
 | Jest + Supertest     | Testes                                            |
 
 ## Decisões técnicas
@@ -170,15 +178,15 @@ Essa autorização contextual existe hoje só nessa rota. As demais rotas de wor
 
 Referências: OWASP Top 10 e OWASP API Security Top 10 (2023). A tabela descreve mecanismos do projeto, não certificação de conformidade.
 
-| Risco                   | Mecanismo                                         | Observação                                           |
-| ----------------------- | ------------------------------------------------- | ---------------------------------------------------- |
-| Quebra de autenticação  | bcrypt, JWT com expiração, refresh token rotativo | O logout não invalida access tokens já emitidos      |
-| BOLA / IDOR             | Membership e autorização contextual               | Cobertura incompleta nas rotas de workspace          |
-| Escalada de privilégios | Middleware `requireRole`                          | Aplicado hoje só ao `PATCH`                          |
-| Configuração insegura   | Validação de ambiente, CORS, Helmet, cookies      | Depende da configuração do ambiente e do cliente     |
-| Entradas inválidas      | Schemas Zod                                       | O middleware não propaga `result.data` ao `req.body` |
-| Vazamento de informação | Resposta genérica para erros não tratados         | Alguns erros diretos têm mensagens específicas       |
-| Força bruta             | Não há rate limiting                              | Limitação conhecida                                  |
+| Risco                   | Mecanismo                                         | Observação                                                                       |
+| ----------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Quebra de autenticação  | bcrypt, JWT com expiração, refresh token rotativo | O logout não invalida access tokens já emitidos; não há detecção de reuso        |
+| BOLA / IDOR             | Membership e autorização contextual               | Aplicada em `PATCH` e na listagem de membros; `GET`/`DELETE /workspaces/:id` ainda não |
+| Escalada de privilégios | Middleware `requireRole`                          | Aplicado a duas rotas; a lista de papéis é definida por rota                     |
+| Configuração insegura   | Validação de ambiente, CORS, Helmet, cookies      | Depende da configuração do ambiente e do cliente                                 |
+| Entradas inválidas      | Schemas Zod                                       | O middleware não propaga `result.data` ao `req.body`                             |
+| Vazamento de informação | Resposta genérica para erros não tratados         | Alguns erros diretos têm mensagens específicas                                   |
+| Força bruta             | Não há rate limiting                              | Limitação conhecida                                                              |
 
 ## Rodando localmente
 
@@ -189,7 +197,7 @@ Node.js compatível com as dependências do projeto, npm, PostgreSQL e Git.
 ### Instalação
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/GustavoGuerato/workspace_auth.git
 cd workspace_auth
 npm install
 cp .env.example .env
@@ -230,7 +238,7 @@ npm run dev
 
 A aplicação imprime a porta em que subiu. Com `PORT=3000`, a URL local é `http://localhost:3000`.
 
-> **Atenção:** a migration de índice referencia `users.username`, mas a migration inicial define `users.name`. Enquanto isso não for corrigido, `npm run migrate` falha em um banco novo. Ver [Limitações conhecidas](#limitações-conhecidas).
+> **Atenção:** a migration `005_add_users_username_index.sql` cria um índice em `users.username`, mas as migrations anteriores definem `users.name` e nenhuma adiciona `username`. Enquanto isso não for corrigido, `npm run migrate` falha em um banco novo ao chegar na migration 005. Ver [Limitações conhecidas](#limitações-conhecidas).
 
 ### Verificação de saúde
 
@@ -244,18 +252,20 @@ Com o banco acessível: `200` e `{"status":"ok","database":"ok"}`. Se a consulta
 
 Contratos completos (payloads, respostas, cookies, formatos de erro e exemplos `curl`) em **[docs/API.md](docs/API.md)**.
 
-| Método | Rota             | Autenticação          | Descrição                                          |
-| ------ | ---------------- | --------------------- | -------------------------------------------------- |
-| `GET`  | `/health`        | Pública               | Verifica a conectividade com o PostgreSQL          |
-| `POST` | `/auth/register` | Pública               | Registra um usuário                                |
-| `POST` | `/auth/login`    | Pública               | Autentica e emite os tokens                        |
-| `GET`  | `/auth/me`       | Bearer JWT            | Retorna o usuário autenticado                      |
-| `POST` | `/auth/refresh`  | Cookie `refreshToken` | Renova o access token e rotaciona o refresh token  |
-| `POST` | `/auth/logout`   | Cookie opcional       | Revoga o refresh token e limpa o cookie            |
-| `GET`  | `/workspaces`    | Bearer JWT            | Lista os workspaces do usuário                     |
-| `POST` | `/workspaces`    | Bearer JWT            | Cria um workspace e associa o criador como `owner` |
-
-As rotas `GET`, `PATCH` e `DELETE /workspaces/:id` ainda não estão concluídas e fazem parte do [Roadmap](#roadmap).
+| Método   | Rota                               | Autenticação                      | Descrição                                                    |
+| -------- | ---------------------------------- | --------------------------------- | ------------------------------------------------------------ |
+| `GET`    | `/health`                          | Pública                           | Verifica a conectividade com o PostgreSQL                    |
+| `POST`   | `/auth/register`                   | Pública                           | Registra um usuário                                          |
+| `POST`   | `/auth/login`                      | Pública                           | Autentica e emite os tokens                                  |
+| `GET`    | `/auth/me`                         | Bearer JWT                        | Retorna o usuário autenticado                                |
+| `POST`   | `/auth/refresh`                    | Cookie `refreshToken`             | Renova o access token e rotaciona o refresh token            |
+| `POST`   | `/auth/logout`                     | Cookie opcional                   | Revoga o refresh token e limpa o cookie                      |
+| `GET`    | `/workspaces`                      | Bearer JWT                        | Lista os workspaces do usuário                               |
+| `POST`   | `/workspaces`                      | Bearer JWT                        | Cria um workspace e associa o criador como `owner`           |
+| `GET`    | `/workspaces/:workspaceId/members` | Bearer JWT + membro do workspace  | Lista `id`, `name` e `role` dos membros, ordenados por nome  |
+| `PATCH`  | `/workspaces/:workspaceId`         | Bearer JWT + `owner` ou `admin`   | Apenas verifica a autorização; ainda não altera dados        |
+| `GET`    | `/workspaces/:id`                  | Nenhuma (placeholder)             | Retorna `501`                                                |
+| `DELETE` | `/workspaces/:id`                  | Nenhuma (placeholder)             | Retorna `501`                                                |
 
 ## Testes
 
@@ -263,19 +273,27 @@ As rotas `GET`, `PATCH` e `DELETE /workspaces/:id` ainda não estão concluídas
 npm test
 ```
 
-O projeto usa Jest e Supertest.
+O projeto usa Jest e Supertest, com 10 suítes em `src/tests/`.
 
-**Resultado da última execução:** `<colar aqui a saída de npm test: suítes, testes passando e falhando>`
+**Última execução registrada no DEVLOG (Dia 20):** 10 suítes e 33 testes, todos aprovados.
 
-Cenários prioritários para a suíte:
+O que a suíte cobre hoje:
 
-- Registro, login e credenciais inválidas.
-- Token ausente, inválido e expirado.
-- Rotação, expiração e revogação de refresh tokens.
-- Criação transacional de workspace e membership.
-- Autorização por papel.
-- Isolamento entre tenants: com dois usuários e workspaces diferentes, a listagem de um não retorna dados do outro.
-- Comportamento do access token depois do logout.
+- Login com credenciais válidas (integração e service), com cookie `HttpOnly` e atributos esperados.
+- Rotação do refresh token: o cookie antigo é rejeitado depois da renovação.
+- Logout: revoga o token, limpa o cookie e impede novas renovações; sem cookie, retorna sucesso.
+- Serviço de refresh token: criação, busca, token inexistente, revogado e expirado, e revogação idempotente.
+- Middlewares `requireAuth`, `requireRole` e `errorHandler`; CORS e cabeçalhos de segurança.
+- Workspaces: `401` sem token, listagem do próprio workspace, o usuário B não vê o workspace do usuário A e não consegue alterá-lo (`403`).
+- Listagem de membros: owner recebe `id`, `name` e `role`; quem não é membro recebe `403`.
+
+O que ainda não tem teste:
+
+- Registro, credenciais inválidas no login e `GET /auth/me`.
+- Criação transacional de workspace.
+- Isolamento com dois workspaces, cada um com seu próprio owner.
+- Listagem de membros por admin, member e viewer.
+- Reuso de refresh token revogado e comportamento do access token depois do logout.
 
 ## Estrutura do projeto
 
@@ -283,7 +301,10 @@ Cenários prioritários para a suíte:
 workspace_auth/
 ├── migrations/
 │   ├── 001_init.sql
-│   └── ...
+│   ├── 002_seed_rbac.sql
+│   ├── 003_create_refresh_tokens.sql
+│   ├── 004_volume_seed.sql
+│   └── 005_add_users_username_index.sql
 ├── src/
 │   ├── config/
 │   │   ├── env.ts
@@ -294,12 +315,15 @@ workspace_auth/
 │   │   └── workspace.Controller.ts
 │   ├── db/
 │   │   ├── pool.ts
-│   │   └── migrate.ts
+│   │   ├── migrate.ts
+│   │   └── seed/
+│   │       └── volume.seed.ts
 │   ├── middlewares/
 │   │   ├── errorHandler.ts
 │   │   ├── requireAuth.ts
 │   │   ├── requireRole.ts
-│   │   └── validate.ts
+│   │   ├── validate.ts
+│   │   └── validateParams.ts
 │   ├── routes/
 │   │   ├── auth.routes.ts
 │   │   ├── health.routes.ts
@@ -307,54 +331,64 @@ workspace_auth/
 │   ├── schemas/
 │   │   ├── auth.schemas.ts
 │   │   ├── env.schema.ts
+│   │   ├── workspaceMembers.schemas.ts
 │   │   └── workspaces.schemas.ts
 │   ├── services/
 │   │   ├── auth.services.ts
 │   │   ├── refresh-token.service.ts
 │   │   ├── user.services.ts
 │   │   └── workspace.services.ts
+│   ├── tests/
+│   │   └── (10 suítes: auth, refresh token, requireAuth, requireRole,
+│   │        errorHandler, CORS, cabeçalhos, workspaces e smoke)
 │   ├── errors.ts
 │   ├── index.ts
 │   └── server.ts
 ├── docs/
 │   └── API.md
+├── .env.example
+├── DEVLOG.md
+├── jest.config.mts
 ├── package.json
 ├── tsconfig.json
-└── README.md
+└── README.MD
 ```
 
 ## Limitações conhecidas
 
 - **Validação Zod:** o middleware valida o body, mas não atribui `result.data` a `req.body`. Transformações como `trim()` e `toLowerCase()` não chegam aos serviços.
-- **Migration de índice:** usa `users.username`, mas a tabela inicial define `users.name`. A migration falha em um banco novo.
-- **Seed de volume:** referencia `users.username` e usa um placeholder literal no lugar do hash de senha.
+- **Migration de índice:** a `005_add_users_username_index.sql` usa `users.username`, mas a tabela define `users.name`. A migration falha em um banco novo.
+- **Seed de volume:** `src/db/seed/volume.seed.ts` referencia `users.username`, usa o placeholder `SEU_HASH_BCRYPT` no lugar do hash de senha e não está ligado a nenhum script npm.
 - **Script `start`:** aponta para `dist/index.js`, enquanto o desenvolvimento inicia `src/server.ts`. O caminho de saída do build precisa ser alinhado ao `tsconfig.json`.
 - **`GET /auth/me`:** se o usuário do token não existe mais, o serviço lança um erro genérico e a resposta é `500`.
 - **Rotas de workspace por id:** `GET` e `DELETE /workspaces/:id` retornam `501` e estão registradas sem autenticação. `PATCH /workspaces/:workspaceId` só verifica a autorização e retorna uma mensagem fixa, sem atualizar dados.
+- **Refresh token:** não há detecção de reuso. Apresentar um token já revogado devolve `401`, mas os demais tokens do usuário continuam válidos.
 - **Revogação de access token:** o logout revoga o refresh token, mas os JWTs já emitidos valem até expirar.
+- **Listagem de membros:** não há paginação, e a verificação de membership e a busca de membros são duas consultas separadas.
 - **Rate limiting:** não há limitação de tentativas em login ou refresh.
 - **CSRF:** não há token CSRF dedicado. A proteção depende de `SameSite=Lax` no cookie e da configuração de CORS.
 - **Tratamento de erros:** parte das respostas sai direto dos middlewares e controllers, fora do handler central.
-- **Isolamento multi-tenant:** a listagem filtra por `m.user_id`, mas ainda não existe teste ponta a ponta com dois usuários.
+- **Isolamento multi-tenant:** há teste com dois usuários e um workspace, mas não com dois workspaces, cada um com seu próprio owner.
 
 ## Roadmap
 
+- [x] Endpoint de listagem de membros com autorização contextual.
 - [ ] Propagar os dados transformados pelo Zod ao controller.
-- [ ] Corrigir as referências a `users.username` nas migrations e no seed.
+- [ ] Corrigir as referências a `users.username` na migration 005 e no seed.
 - [ ] Alinhar `start`, build e `tsconfig.json`.
-- [ ] Implementar leitura, atualização e exclusão de workspaces com autorização contextual.
-- [ ] Testes de isolamento multi-tenant.
-- [ ] Testes de rotação, revogação e expiração de tokens.
+- [ ] Aplicar `requireAuth` e autorização contextual em `GET`/`DELETE /workspaces/:id` e implementar leitura, atualização e exclusão.
+- [ ] Testes de isolamento com dois workspaces e de listagem de membros por cada papel.
+- [ ] Detecção de reuso de refresh token.
 - [ ] Uniformizar o tratamento de erros.
-- [ ] Seed de volume e análise de índices com `EXPLAIN ANALYZE`.
+- [ ] Criar o índice em `memberships.workspace_id` e medir com `EXPLAIN ANALYZE`.
 - [ ] Rate limiting nas operações sensíveis.
 - [ ] Avaliar proteção CSRF conforme o modelo de cliente.
 - [ ] Docker e CI.
 - [ ] Especificação OpenAPI.
-- [ ] Frontend e deploy.
+- [ ] Deploy.
 
 ## Autor
 
-**Gustavo Guerato** · [LinkedIn](https://linkedin.com/in/gustavo-guerato-6b8403259)
+**Gustavo Guerato** · [LinkedIn](https://www.linkedin.com/in/gustavo-guerato-6b8403259/)
 
 Projeto de portfólio para estudo prático de engenharia de backend: autenticação, autorização, modelagem relacional, segurança de APIs e consistência de dados.
